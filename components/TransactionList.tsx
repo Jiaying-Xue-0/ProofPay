@@ -1,12 +1,20 @@
 import { useState } from 'react';
 import { Transaction } from '../types/transaction';
 import { useAccount } from 'wagmi';
+import { getExplorerUrl } from '@/utils/explorer';
+import { shortenAddress } from '@/utils/address';
 
 interface TransactionListProps {
   transactions: Transaction[];
   onSelectTransaction: (transaction: Transaction) => void;
   type: 'income' | 'expense';
 }
+
+// 格式化 USDT 金额显示
+const formatUSDTAmount = (amount: string): string => {
+  const num = parseFloat(amount);
+  return (num / 1000000).toFixed(6); // 除以 10^6 转换为实际金额
+};
 
 export function TransactionList({ transactions, onSelectTransaction, type }: TransactionListProps) {
   const { address } = useAccount();
@@ -38,7 +46,7 @@ export function TransactionList({ transactions, onSelectTransaction, type }: Tra
                   {new Date(tx.timestamp * 1000).toLocaleString()}
                 </p>
                 <p className="mt-1 text-sm font-medium">
-                  {type === 'income' ? '收到' : '支付'} {tx.value} {tx.tokenSymbol}
+                  {type === 'income' ? '收到' : '支付'} {formatUSDTAmount(tx.value)} {tx.tokenSymbol}
                 </p>
               </div>
               <div className="flex space-x-2">
@@ -61,16 +69,4 @@ export function TransactionList({ transactions, onSelectTransaction, type }: Tra
       </div>
     </div>
   );
-}
-
-function shortenAddress(address: string): string {
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-}
-
-function getExplorerUrl(tx: Transaction): string {
-  if (tx.chain === 'ethereum') {
-    return `https://etherscan.io/tx/${tx.hash}`;
-  } else {
-    return `https://solscan.io/tx/${tx.hash}`;
-  }
 } 

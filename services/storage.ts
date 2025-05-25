@@ -61,5 +61,10 @@ export const storage = {
 
   generateShareLink: (invoiceId: string): string => {
     return `${window.location.origin}/share/${invoiceId}`;
+  },
+
+  getInvoiceById: (id: string): InvoiceRecord | null => {
+    const invoices = storage.getInvoices();
+    return invoices.find(invoice => invoice.id === id) || null;
   }
 }; 
