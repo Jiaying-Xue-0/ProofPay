@@ -25,8 +25,8 @@ ProofPay 是一个基于 Web3 的发票生成器，允许用户为区块链上�
 1. 克隆仓库：
 
 ```bash
-git clone https://github.com/yourusername/proofpay.git
-cd proofpay
+git clone https://github.com/Jiaying-Xue-0/ProoPay.git
+cd ProoPay
 ```
 
 2. 安装依赖：
