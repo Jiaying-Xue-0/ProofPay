@@ -43,11 +43,13 @@ export default function Home() {
     if (isConnected && address && !showHistory) {
       fetchTransactions();
     }
-  }, [isConnected, address, activeTab, showHistory, fetchTransactions]);
+  }, [isConnected, address, showHistory, fetchTransactions]);
 
   const handleTransactionSelect = (transaction: Transaction) => {
     setSelectedTransaction(transaction);
-    setFormType(activeTab === 'income' ? 'invoice' : 'receipt');
+    // Set form type based on transaction direction
+    const isIncoming = transaction.to.toLowerCase() === address?.toLowerCase();
+    setFormType(isIncoming ? 'invoice' : 'receipt');
     setIsFormOpen(true);
   };
 

@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Transaction } from '../types/transaction';
 import { useAccount } from 'wagmi';
 import { getExplorerUrl } from '@/utils/explorer';

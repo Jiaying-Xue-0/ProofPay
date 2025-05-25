@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { storage } from '../services/storage';
 import { format } from 'date-fns';
 
@@ -29,7 +29,7 @@ export function InvoiceHistory() {
     endDate: '',
   });
 
-  const loadInvoices = () => {
+  const loadInvoices = useCallback(() => {
     const records = storage.filterInvoices({
       type: filter.type || undefined,
       tokenSymbol: filter.tokenSymbol || undefined,
@@ -37,11 +37,11 @@ export function InvoiceHistory() {
       endDate: filter.endDate ? new Date(filter.endDate).getTime() : undefined,
     });
     setInvoices(records);
-  };
+  }, [filter]);
 
   useEffect(() => {
     loadInvoices();
-  }, [filter, loadInvoices]);
+  }, [loadInvoices]);
 
   return (
     <div className="mt-8">
