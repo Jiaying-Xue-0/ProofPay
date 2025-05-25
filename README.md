@@ -1,36 +1,80 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ProofPay - Web3 发票生成器
 
-## Getting Started
+ProofPay 是一个基于 Web3 的发票生成器，允许用户为区块链上的交易生成专业的发票和收据。
 
-First, run the development server:
+## 功能特点
+
+- 🔗 支持以太坊网络
+- 📄 生成专业的发票和收据
+- 💾 本地保存历史记录
+- 🔍 交易历史查询和筛选
+- 📱 响应式设计，支持移动端
+- 🏷️ 交易标签管理
+
+## 技术栈
+
+- Next.js 14
+- TypeScript
+- RainbowKit & Wagmi
+- Etherscan API
+- TailwindCSS
+- Headless UI
+
+## 开始使用
+
+1. 克隆仓库：
+
+```bash
+git clone https://github.com/yourusername/proofpay.git
+cd proofpay
+```
+
+2. 安装依赖：
+
+```bash
+npm install
+```
+
+3. 配置环境变量：
+
+创建 `.env.local` 文件并添加以下配置：
+
+```env
+NEXT_PUBLIC_ETHERSCAN_API_KEY=your_etherscan_api_key
+NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID=your_wallet_connect_project_id
+```
+
+4. 启动开发服务器：
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+访问 [http://localhost:3000](http://localhost:3000) 查看应用。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 使用说明
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. 连接钱包：点击右上角的"Connect Wallet"按钮连接你的 Web3 钱包
+2. 查看交易：连接成功后自动显示最近 30 天的交易记录
+3. 生成文档：
+   - 点击交易记录可以选择生成发票或收据
+   - 填写必要信息（客户名称、描述等）
+   - 可以添加标签和备注
+   - 生成 PDF 文档
+4. 历史记录：可以查看之前生成的所有文档
 
-## Learn More
+## 开发计划
 
-To learn more about Next.js, take a look at the following resources:
+- [ ] 支持更多区块链网络（Solana、Polygon 等）
+- [ ] 自定义发票模板
+- [ ] 批量生成功能
+- [ ] 导出财务报表
+- [ ] 多语言支持
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 贡献指南
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+欢迎提交 Pull Request 和 Issue！
 
-## Deploy on Vercel
+## 许可证
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT License
