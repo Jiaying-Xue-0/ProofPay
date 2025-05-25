@@ -2,22 +2,36 @@ import { useState, useEffect } from 'react';
 import { storage } from '../services/storage';
 import { format } from 'date-fns';
 
+interface Invoice {
+  id: string;
+  type: 'invoice' | 'receipt';
+  customerName: string;
+  amount: string;
+  tokenSymbol: string;
+  description: string;
+  date: number;
+  tags?: string[];
+}
+
+interface FilterState {
+  type: '' | 'invoice' | 'receipt';
+  tokenSymbol: string;
+  startDate: string;
+  endDate: string;
+}
+
 export function InvoiceHistory() {
-  const [invoices, setInvoices] = useState<any[]>([]);
-  const [filter, setFilter] = useState({
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [filter, setFilter] = useState<FilterState>({
     type: '',
     tokenSymbol: '',
     startDate: '',
     endDate: '',
   });
 
-  useEffect(() => {
-    loadInvoices();
-  }, [filter]);
-
   const loadInvoices = () => {
     const records = storage.filterInvoices({
-      type: filter.type as any,
+      type: filter.type || undefined,
       tokenSymbol: filter.tokenSymbol || undefined,
       startDate: filter.startDate ? new Date(filter.startDate).getTime() : undefined,
       endDate: filter.endDate ? new Date(filter.endDate).getTime() : undefined,
@@ -25,12 +39,16 @@ export function InvoiceHistory() {
     setInvoices(records);
   };
 
+  useEffect(() => {
+    loadInvoices();
+  }, [filter, loadInvoices]);
+
   return (
     <div className="mt-8">
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-4">
         <select
           value={filter.type}
-          onChange={(e) => setFilter({ ...filter, type: e.target.value })}
+          onChange={(e) => setFilter({ ...filter, type: e.target.value as FilterState['type'] })}
           className="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
         >
           <option value="">所有类型</option>

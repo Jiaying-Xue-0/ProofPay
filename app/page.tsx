@@ -1,7 +1,7 @@
 'use client';
 
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAccount } from 'wagmi';
 import { TransactionList } from '../components/TransactionList';
 import { InvoiceForm } from '../components/InvoiceForm';
@@ -20,13 +20,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
-  useEffect(() => {
-    if (isConnected && address && !showHistory) {
-      fetchTransactions();
-    }
-  }, [isConnected, address, activeTab, showHistory]);
-
-  const fetchTransactions = async () => {
+  const fetchTransactions = useCallback(async () => {
     setLoading(true);
     try {
       const txs = await blockchain.getEthereumTransactions(address!);
@@ -43,10 +37,17 @@ export default function Home() {
       console.error('Error fetching transactions:', error);
     }
     setLoading(false);
-  };
+  }, [address, activeTab]);
+
+  useEffect(() => {
+    if (isConnected && address && !showHistory) {
+      fetchTransactions();
+    }
+  }, [isConnected, address, activeTab, showHistory, fetchTransactions]);
 
   const handleTransactionSelect = (transaction: Transaction) => {
     setSelectedTransaction(transaction);
+    setFormType(activeTab === 'income' ? 'invoice' : 'receipt');
     setIsFormOpen(true);
   };
 
