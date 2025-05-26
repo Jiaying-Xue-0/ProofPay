@@ -11,7 +11,7 @@ import { blockchain } from '../services/blockchain';
 import { Dialog } from '@headlessui/react';
 
 export default function Home() {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chain } = useAccount();
   const [activeTab, setActiveTab] = useState('income');
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
@@ -21,29 +21,55 @@ export default function Home() {
   const [showHistory, setShowHistory] = useState(false);
 
   const fetchTransactions = useCallback(async () => {
+    if (!address || !chain) return;
+
     setLoading(true);
     try {
-      const txs = await blockchain.getEthereumTransactions(address!);
+      let network: 'ethereum' | 'polygon' | 'optimism' | 'arbitrum';
+      
+      // 根据当前链ID确定网络
+      switch (chain.id) {
+        case 1:
+          network = 'ethereum';
+          break;
+        case 137:
+          network = 'polygon';
+          break;
+        case 10:
+          network = 'optimism';
+          break;
+        case 42161:
+          network = 'arbitrum';
+          break;
+        default:
+          console.error('Unsupported network');
+          setTransactions([]);
+          setLoading(false);
+          return;
+      }
+
+      const txs = await blockchain.getTransactions(address, network);
       
       // 根据当前标签过滤交易
       const filteredTxs = txs.filter((tx) =>
         activeTab === 'income'
-          ? tx.to.toLowerCase() === address!.toLowerCase()
-          : tx.from.toLowerCase() === address!.toLowerCase()
+          ? tx.to.toLowerCase() === address.toLowerCase()
+          : tx.from.toLowerCase() === address.toLowerCase()
       );
 
       setTransactions(filteredTxs);
     } catch (error) {
       console.error('Error fetching transactions:', error);
+      setTransactions([]);
     }
     setLoading(false);
-  }, [address, activeTab]);
+  }, [address, chain, activeTab]);
 
   useEffect(() => {
     if (isConnected && address && !showHistory) {
       fetchTransactions();
     }
-  }, [isConnected, address, showHistory, fetchTransactions]);
+  }, [isConnected, address, chain, showHistory, fetchTransactions]);
 
   const handleTransactionSelect = (transaction: Transaction) => {
     setSelectedTransaction(transaction);
