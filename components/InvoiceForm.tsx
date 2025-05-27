@@ -242,7 +242,7 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
         </div>
       )}
 
-      <div className="flex justify-end space-x-3">
+      <div className="flex justify-end space-x-3 mt-8 pb-6">
         <button
           type="button"
           onClick={onClose}
