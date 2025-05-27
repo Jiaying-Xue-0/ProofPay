@@ -15,12 +15,94 @@ const API_ENDPOINTS = {
 const THIRTY_DAYS_IN_SECONDS = 30 * 24 * 60 * 60;
 const startTimestamp = Math.floor(Date.now() / 1000) - THIRTY_DAYS_IN_SECONDS;
 
-export const blockchain = {
+export interface TransactionDetails {
+  blockNumber: number;
+  status: 'success' | 'failed';
+  timestamp: number;
+  from: string;
+  to: string;
+  value: string;
+}
+
+class BlockchainService {
+  async getTransactionDetails(txHash: string): Promise<TransactionDetails | null> {
+    try {
+      // 获取交易详情
+      const txResponse = await axios.get(API_ENDPOINTS.ethereum, {
+        params: {
+          module: 'proxy',
+          action: 'eth_getTransactionByHash',
+          txhash: txHash,
+          apikey: ETHERSCAN_API_KEY,
+        },
+      });
+
+      if (!txResponse.data.result) {
+        return null;
+      }
+
+      const tx = txResponse.data.result;
+
+      // 获取交易收据（包含状态）
+      const receiptResponse = await axios.get(API_ENDPOINTS.ethereum, {
+        params: {
+          module: 'proxy',
+          action: 'eth_getTransactionReceipt',
+          txhash: txHash,
+          apikey: ETHERSCAN_API_KEY,
+        },
+      });
+
+      if (!receiptResponse.data.result) {
+        return null;
+      }
+
+      const receipt = receiptResponse.data.result;
+
+      // 获取区块信息（包含时间戳）
+      const blockResponse = await axios.get(API_ENDPOINTS.ethereum, {
+        params: {
+          module: 'block',
+          action: 'getblockreward',
+          blockno: parseInt(receipt.blockNumber, 16).toString(),
+          apikey: ETHERSCAN_API_KEY,
+        },
+      });
+
+      if (blockResponse.data.status !== '1' || !blockResponse.data.result) {
+        return null;
+      }
+
+      return {
+        blockNumber: parseInt(receipt.blockNumber, 16),
+        status: receipt.status === '0x1' ? 'success' : 'failed',
+        timestamp: parseInt(blockResponse.data.result.timeStamp) * 1000, // 转换为毫秒
+        from: tx.from,
+        to: tx.to || '',
+        value: parseInt(tx.value, 16).toString(),
+      };
+    } catch (error) {
+      console.error('Error fetching transaction details:', error);
+      return null;
+    }
+  }
+
+  getExplorerUrl(txHash: string, chainId: number = 1): string {
+    const explorers: Record<number, string> = {
+      1: 'https://etherscan.io',
+      5: 'https://goerli.etherscan.io',
+      11155111: 'https://sepolia.etherscan.io',
+    };
+    
+    const baseUrl = explorers[chainId] || explorers[1];
+    return `${baseUrl}/tx/${txHash}`;
+  }
+
   async getTransactions(address: string, network: 'ethereum' | 'polygon' | 'optimism' | 'arbitrum'): Promise<Transaction[]> {
     try {
       const [normalTxs, tokenTxs] = await Promise.all([
-        getTransactions(address, network, 'normal'),
-        getTransactions(address, network, 'token'),
+        this.getTransactionsByType(address, network, 'normal'),
+        this.getTransactionsByType(address, network, 'token'),
       ]);
 
       return [...normalTxs, ...tokenTxs].sort((a, b) => b.timestamp - a.timestamp);
@@ -29,43 +111,46 @@ export const blockchain = {
       return [];
     }
   }
-};
 
-async function getTransactions(
-  address: string, 
-  network: 'ethereum' | 'polygon' | 'optimism' | 'arbitrum',
-  type: 'normal' | 'token'
-): Promise<Transaction[]> {
-  try {
-    const response = await axios.get(API_ENDPOINTS[network], {
-      params: {
-        module: 'account',
-        action: type === 'normal' ? 'txlist' : 'tokentx',
-        address,
-        startblock: 0,
-        endblock: 99999999,
-        sort: 'desc',
-        apikey: ETHERSCAN_API_KEY,
-      },
-    });
+  private async getTransactionsByType(
+    address: string, 
+    network: 'ethereum' | 'polygon' | 'optimism' | 'arbitrum',
+    type: 'normal' | 'token'
+  ): Promise<Transaction[]> {
+    try {
+      const response = await axios.get(API_ENDPOINTS[network], {
+        params: {
+          module: 'account',
+          action: type === 'normal' ? 'txlist' : 'tokentx',
+          address,
+          startblock: 0,
+          endblock: 99999999,
+          sort: 'desc',
+          apikey: ETHERSCAN_API_KEY,
+        },
+      });
 
-    if (response.data.status === '1' && response.data.result) {
-      return response.data.result
-        .filter((tx: any) => parseInt(tx.timeStamp) >= startTimestamp)
-        .map((tx: any) => ({
-          hash: tx.hash,
-          timestamp: parseInt(tx.timeStamp),
-          from: tx.from,
-          to: tx.to,
-          value: tx.value,
-          tokenSymbol: type === 'normal' ? network.toUpperCase() : tx.tokenSymbol,
-          chain: network,
-        }));
+      if (response.data.status === '1' && response.data.result) {
+        const startTimestamp = Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60; // 30 days ago
+        return response.data.result
+          .filter((tx: any) => parseInt(tx.timeStamp) >= startTimestamp)
+          .map((tx: any) => ({
+            hash: tx.hash,
+            timestamp: parseInt(tx.timeStamp),
+            from: tx.from,
+            to: tx.to,
+            value: tx.value,
+            tokenSymbol: type === 'normal' ? network.toUpperCase() : tx.tokenSymbol,
+            chain: network,
+          }));
+      }
+
+      return [];
+    } catch (error) {
+      console.error(`Error fetching ${type} transactions for ${network}:`, error);
+      return [];
     }
-
-    return [];
-  } catch (error) {
-    console.error(`Error fetching ${type} transactions for ${network}:`, error);
-    return [];
   }
-} 
+}
+
+export const blockchain = new BlockchainService(); 

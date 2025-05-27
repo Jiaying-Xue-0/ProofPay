@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { Transaction } from '../types/transaction';
-import { jsPDF } from 'jspdf';
+import { generatePDF } from '../utils/pdfGenerator';
+import { generateDocumentId } from '../utils/documentId';
 import { storage } from '../services/storage';
+import { blockchain } from '../services/blockchain';
 
 const PREDEFINED_TAGS = [
   'Salary',
@@ -19,73 +21,6 @@ const formatUSDTAmount = (amount: string): string => {
   return (num / 1000000).toFixed(6);
 };
 
-const createSimplePDF = (data: {
-  type: 'invoice' | 'receipt';
-  date: string;
-  transactionHash: string;
-  customerName: string;
-  amount: string;
-  tokenSymbol: string;
-  description: string;
-  tags?: string[];
-  additionalNotes?: string;
-}) => {
-  const doc = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a4',
-  });
-  
-  let y = 20;
-  const lineHeight = 10;
-  
-  // 标题
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(24);
-  doc.text(data.type === 'invoice' ? 'INVOICE' : 'RECEIPT', 105, y, { align: 'center' });
-  y += lineHeight * 2;
-
-  // 基本信息
-  doc.setFontSize(12);
-  doc.text(`Date: ${data.date}`, 20, y);
-  y += lineHeight;
-
-  doc.text(`Transaction ID: ${data.transactionHash}`, 20, y);
-  y += lineHeight;
-
-  doc.text(`Customer: ${data.customerName}`, 20, y);
-  y += lineHeight;
-
-  doc.text(`Amount: ${data.amount} ${data.tokenSymbol}`, 20, y);
-  y += lineHeight * 1.5;
-
-  // 描述
-  doc.text('Description:', 20, y);
-  y += lineHeight;
-  const descriptionLines = doc.splitTextToSize(data.description, 170);
-  doc.text(descriptionLines, 20, y);
-  y += lineHeight * (descriptionLines.length + 0.5);
-
-  // 标签
-  doc.text('Tags:', 20, y);
-  y += lineHeight;
-  if (data.tags && data.tags.length > 0) {
-    const tagsText = data.tags.join(' | ');
-    doc.text(tagsText, 20, y);
-    y += lineHeight;
-  }
-
-  // 备注
-  if (data.additionalNotes) {
-    doc.text('Notes:', 20, y);
-    y += lineHeight;
-    const notesLines = doc.splitTextToSize(data.additionalNotes, 170);
-    doc.text(notesLines, 20, y);
-  }
-
-  return doc;
-};
-
 interface InvoiceFormProps {
   transaction: Transaction;
   type: 'invoice' | 'receipt';
@@ -95,6 +30,7 @@ interface InvoiceFormProps {
 export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
   const [formData, setFormData] = useState({
     customerName: '',
+    customerAddress: '',
     description: '',
     additionalNotes: '',
     tags: [] as string[],
@@ -106,13 +42,26 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
     e.preventDefault();
     
     try {
+      const documentId = generateDocumentId(type);
+      const date = new Date(transaction.timestamp * 1000).toISOString().split('T')[0];
+      const amount = formatUSDTAmount(transaction.value);
+
+      // 获取区块链交易详情
+      const txDetails = await blockchain.getTransactionDetails(transaction.hash);
+
+      if (!txDetails) {
+        throw new Error('无法获取交易详情，请确保交易已确认');
+      }
+
       // 保存到本地存储
-      const savedInvoice = storage.saveInvoice({
+      const savedDocument = storage.saveInvoice({
+        documentId,
         transactionHash: transaction.hash,
         type,
         customerName: formData.customerName,
+        customerAddress: formData.customerAddress,
         description: formData.description,
-        amount: formatUSDTAmount(transaction.value),
+        amount,
         tokenSymbol: transaction.tokenSymbol,
         date: transaction.timestamp * 1000,
         from: transaction.from,
@@ -121,36 +70,43 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
         tags: formData.tags,
       });
 
-      // 创建 PDF
-      const doc = createSimplePDF({
+      // 生成 PDF
+      const doc = await generatePDF({
         type,
-        date: new Date(transaction.timestamp * 1000).toLocaleDateString(),
-        transactionHash: `${transaction.hash.slice(0, 6)}...${transaction.hash.slice(-4)}`,
+        documentId,
+        date: new Date().toISOString().split('T')[0], // 使用当前时间作为开票时间
         customerName: formData.customerName,
-        amount: formatUSDTAmount(transaction.value),
+        customerAddress: formData.customerAddress,
+        from: transaction.from,
+        to: transaction.to,
+        amount,
         tokenSymbol: transaction.tokenSymbol,
         description: formData.description,
         tags: formData.tags,
         additionalNotes: formData.additionalNotes,
+        transactionHash: transaction.hash,
+        blockNumber: txDetails.blockNumber,
+        transactionStatus: txDetails.status,
+        issuer: 'ProofPay', // 或者用户设置的名称
+        chainId: Number(transaction.chain), // 转换为数字类型
       });
 
       // 保存 PDF
-      const fileName = `proofpay-${type}-${Date.now()}.pdf`;
-      try {
-        doc.save(fileName);
-      } catch (saveError) {
-        console.error('PDF save error:', saveError);
-        alert('PDF 生成失败，请重试');
-        return;
-      }
+      const fileName = `proofpay-${type}-${documentId}.pdf`;
+      doc.save(fileName);
 
       // 生成分享链接
-      const shareUrl = new URL(`/share/${savedInvoice.id}`, window.location.origin);
+      const shareUrl = new URL(`/share/${savedDocument.id}`, window.location.origin);
       setShareLink(shareUrl.toString());
       setShowShareLink(true);
     } catch (error) {
       console.error('Form submission error:', error);
-      alert('发票生成失败，请重试');
+      // 显示更详细的错误信息
+      if (error instanceof Error) {
+        alert(`发票生成失败: ${error.message}`);
+      } else {
+        alert('发票生成失败，请重试');
+      }
     }
   };
 
@@ -164,7 +120,7 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-6 max-h-[80vh] overflow-y-auto px-4">
       <div>
         <label
           htmlFor="customerName"
@@ -181,6 +137,25 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
           value={formData.customerName}
           onChange={(e) =>
             setFormData({ ...formData, customerName: e.target.value })
+          }
+        />
+      </div>
+
+      <div>
+        <label
+          htmlFor="customerAddress"
+          className="block text-sm font-medium text-gray-700"
+        >
+          客户地址（可选）
+        </label>
+        <input
+          type="text"
+          name="customerAddress"
+          id="customerAddress"
+          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm h-10 px-3"
+          value={formData.customerAddress}
+          onChange={(e) =>
+            setFormData({ ...formData, customerAddress: e.target.value })
           }
         />
       </div>
