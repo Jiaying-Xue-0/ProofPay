@@ -1,3 +1,5 @@
+export type SignatureStatus = 'pending' | 'signed' | 'mismatch' | 'unverifiable';
+
 export interface InvoiceRecord {
   id: string;
   documentId: string;
@@ -13,5 +15,10 @@ export interface InvoiceRecord {
   to: string;
   additionalNotes?: string;
   tags: string[];
+  signatureStatus: SignatureStatus;
+  signedBy?: string;
+  signedAt?: Date;
+  signature?: string;
+  signedMessage?: string;
   createdAt: number;
 } 

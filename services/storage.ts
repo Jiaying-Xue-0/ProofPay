@@ -20,20 +20,27 @@ class StorageService {
     localStorage.setItem(this.STORAGE_KEY, JSON.stringify(invoices));
   }
 
-  saveInvoice(data: Omit<InvoiceRecord, 'id' | 'createdAt'>): InvoiceRecord {
-    try {
-      const invoices = this.getInvoices();
-      const newInvoice: InvoiceRecord = {
-        ...data,
-        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        createdAt: Date.now(),
-      };
-      invoices.push(newInvoice);
-      this.saveInvoices(invoices);
-      return newInvoice;
-    } catch (error) {
-      throw new Error('保存发票数据失败');
-    }
+  saveInvoice(invoice: Omit<InvoiceRecord, 'id' | 'createdAt'>): InvoiceRecord {
+    const invoices = this.getAllInvoices();
+    const newInvoice: InvoiceRecord = {
+      ...invoice,
+      id: invoice.documentId,
+      createdAt: Date.now(),
+    };
+    
+    invoices.push(newInvoice);
+    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(invoices));
+    return newInvoice;
+  }
+
+  getInvoice(id: string): InvoiceRecord | null {
+    const invoices = this.getAllInvoices();
+    return invoices.find(invoice => invoice.id === id || invoice.documentId === id) || null;
+  }
+
+  private getAllInvoices(): InvoiceRecord[] {
+    const stored = localStorage.getItem(this.STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
   }
 
   getInvoiceById(id: string): InvoiceRecord | null {

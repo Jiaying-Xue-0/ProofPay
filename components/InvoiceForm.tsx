@@ -1,9 +1,12 @@
 import { useState } from 'react';
+import { useAccount, useSignMessage } from 'wagmi';
 import { Transaction } from '../types/transaction';
 import { generatePDF } from '../utils/pdfGenerator';
 import { generateDocumentId } from '../utils/documentId';
 import { storage } from '../services/storage';
 import { blockchain } from '../services/blockchain';
+import { generateSignatureMessage } from '../utils/signature';
+import { SignatureStatus } from '../types/storage';
 
 const PREDEFINED_TAGS = [
   'Salary',
@@ -28,6 +31,8 @@ interface InvoiceFormProps {
 }
 
 export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
+  const { address } = useAccount();
+  const { signMessageAsync } = useSignMessage();
   const [formData, setFormData] = useState({
     customerName: '',
     customerAddress: '',
@@ -37,11 +42,49 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
   });
   const [showShareLink, setShowShareLink] = useState(false);
   const [shareLink, setShareLink] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [signatureStatus, setSignatureStatus] = useState<SignatureStatus>('pending');
+
+  const isIncome = transaction.to.toLowerCase() === address?.toLowerCase();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     try {
+      setIsLoading(true);
+      setError(null);
+
+      let signature: string | undefined;
+      let signedMessage: string | undefined;
+
+      // 如果是收入发票，需要先签名
+      if (isIncome) {
+        if (!address) {
+          throw new Error('请先连接钱包');
+        }
+
+        const message = generateSignatureMessage({
+          walletAddress: address,
+          amount: formatUSDTAmount(transaction.value),
+          token: transaction.tokenSymbol,
+          fromAddress: transaction.from,
+          date: new Date(transaction.timestamp * 1000).toLocaleDateString(),
+          txHash: transaction.hash,
+        });
+
+        signature = await signMessageAsync({ message });
+        signedMessage = message;
+
+        // 验证签名
+        const recoveredAddress = await blockchain.verifySignature(message, signature);
+        if (recoveredAddress.toLowerCase() !== address.toLowerCase()) {
+          setSignatureStatus('mismatch');
+          throw new Error('签名验证失败');
+        }
+        setSignatureStatus('signed');
+      }
+
       const documentId = generateDocumentId(type);
       const date = new Date(transaction.timestamp * 1000).toISOString().split('T')[0];
       const amount = formatUSDTAmount(transaction.value);
@@ -68,13 +111,18 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
         to: transaction.to,
         additionalNotes: formData.additionalNotes,
         tags: formData.tags,
+        signatureStatus: isIncome ? (signature ? 'signed' : 'pending') : 'unverifiable',
+        signedBy: isIncome && signature ? address : undefined,
+        signedAt: isIncome && signature ? new Date() : undefined,
+        signature,
+        signedMessage,
       });
 
       // 生成 PDF
       const doc = await generatePDF({
         type,
         documentId,
-        date: new Date().toISOString().split('T')[0], // 使用当前时间作为开票时间
+        date: new Date().toISOString().split('T')[0],
         customerName: formData.customerName,
         customerAddress: formData.customerAddress,
         from: transaction.from,
@@ -87,8 +135,10 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
         transactionHash: transaction.hash,
         blockNumber: txDetails.blockNumber,
         transactionStatus: txDetails.status,
-        issuer: 'ProofPay', // 或者用户设置的名称
-        chainId: Number(transaction.chain), // 转换为数字类型
+        issuer: 'ProofPay',
+        chainId: Number(transaction.chain),
+        signatureStatus: isIncome ? (signature ? 'signed' : 'pending') : 'unverifiable',
+        signedBy: isIncome && signature ? address : undefined,
       });
 
       // 保存 PDF
@@ -96,17 +146,14 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
       doc.save(fileName);
 
       // 生成分享链接
-      const shareUrl = new URL(`/share/${savedDocument.id}`, window.location.origin);
+      const shareUrl = new URL(`/verify/${documentId}`, window.location.origin);
       setShareLink(shareUrl.toString());
       setShowShareLink(true);
     } catch (error) {
       console.error('Form submission error:', error);
-      // 显示更详细的错误信息
-      if (error instanceof Error) {
-        alert(`发票生成失败: ${error.message}`);
-      } else {
-        alert('发票生成失败，请重试');
-      }
+      setError(error instanceof Error ? error.message : '发票生成失败，请重试');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -121,6 +168,21 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 max-h-[80vh] overflow-y-auto px-4">
+      {error && (
+        <div className="rounded-md bg-red-50 p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-red-800">{error}</h3>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div>
         <label
           htmlFor="customerName"
@@ -221,6 +283,24 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
         />
       </div>
 
+      {isIncome && (
+        <div className="rounded-md bg-yellow-50 p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-yellow-800">需要签名确认</h3>
+              <div className="mt-2 text-sm text-yellow-700">
+                <p>生成收入发票需要您使用钱包签名，以证明您是此笔收入的接收方。</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showShareLink && (
         <div className="mt-4 p-4 bg-gray-50 rounded-md">
           <p className="text-sm font-medium text-gray-700 mb-2">分享链接：</p>
@@ -246,15 +326,17 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
         <button
           type="button"
           onClick={onClose}
+          disabled={isLoading}
           className="rounded-md border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
         >
           取消
         </button>
         <button
           type="submit"
+          disabled={isLoading}
           className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
         >
-          生成{type === 'invoice' ? '发票' : '收据'}
+          {isLoading ? '处理中...' : `生成${type === 'invoice' ? '发票' : '收据'}`}
         </button>
       </div>
     </form>

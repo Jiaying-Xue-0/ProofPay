@@ -1,5 +1,6 @@
 import { Transaction } from '../types/transaction';
 import axios from 'axios';
+import { ethers } from 'ethers';
 
 const ETHERSCAN_API_KEY = process.env.NEXT_PUBLIC_ETHERSCAN_API_KEY;
 
@@ -149,6 +150,15 @@ class BlockchainService {
     } catch (error) {
       console.error(`Error fetching ${type} transactions for ${network}:`, error);
       return [];
+    }
+  }
+
+  async verifySignature(message: string, signature: string): Promise<string> {
+    try {
+      return ethers.utils.verifyMessage(message, signature);
+    } catch (error) {
+      console.error('Error verifying signature:', error);
+      throw new Error('签名验证失败');
     }
   }
 }
