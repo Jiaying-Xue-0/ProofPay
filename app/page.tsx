@@ -180,7 +180,9 @@ export default function Home() {
         <div className="fixed inset-0 flex items-center justify-center p-4">
           <Dialog.Panel className="mx-auto max-w-xl rounded bg-white p-6">
             <Dialog.Title className="text-lg font-medium leading-6 text-gray-900 mb-4">
-              生成{formType === 'invoice' ? '发票' : '收据'}
+              {formType === 'invoice' 
+                ? '生成发票' 
+                : (activeTab === 'expense' ? '生成支出凭证' : '生成收据')}
             </Dialog.Title>
             {selectedTransaction && (
               <InvoiceForm

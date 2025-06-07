@@ -1,12 +1,13 @@
 import { Transaction } from '../types/transaction';
 
-interface SignatureParams {
+interface SignatureMessageParams {
   walletAddress: string;
   amount: string;
   token: string;
   fromAddress: string;
   date: string;
   txHash: string;
+  type?: 'income' | 'expense';
 }
 
 export function generateSignatureMessage({
@@ -16,9 +17,24 @@ export function generateSignatureMessage({
   fromAddress,
   date,
   txHash,
-}: SignatureParams): string {
-  return `I confirm that I, the owner of wallet ${walletAddress}, received a payment of ${amount} ${token} from ${fromAddress} on ${date} (tx hash: ${txHash}).
-Signed via ProofPay.`;
+  type = 'income'
+}: SignatureMessageParams): string {
+  const templates = {
+    income: `我确认在 ${date} 从钱包地址 ${fromAddress} 收到了 ${amount} ${token}。
+
+交易哈希：${txHash}
+签名钱包：${walletAddress}
+
+此签名用于证明我是该笔收入的接收方。`,
+    expense: `I confirm that I paid ${amount} ${token} from my wallet address ${fromAddress} on ${date}.
+
+Transaction Hash: ${txHash}
+Signing Wallet: ${walletAddress}
+
+This signature proves that I am the payer of this expense.`
+  };
+
+  return templates[type];
 }
 
 export function formatSignatureDisplay(signature: string): string {

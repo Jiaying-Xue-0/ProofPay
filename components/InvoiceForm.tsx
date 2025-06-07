@@ -58,8 +58,8 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
       let signature: string | undefined;
       let signedMessage: string | undefined;
 
-      // 如果是收入发票，需要先签名
-      if (isIncome) {
+      // 如果是收入发票或支出收据，需要签名
+      if ((isIncome && type === 'invoice') || (!isIncome && type === 'receipt')) {
         if (!address) {
           throw new Error('请先连接钱包');
         }
@@ -71,6 +71,7 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
           fromAddress: transaction.from,
           date: new Date(transaction.timestamp * 1000).toLocaleDateString(),
           txHash: transaction.hash,
+          type: isIncome ? 'income' : 'expense'
         });
 
         signature = await signMessageAsync({ message });
@@ -111,9 +112,11 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
         to: transaction.to,
         additionalNotes: formData.additionalNotes,
         tags: formData.tags,
-        signatureStatus: isIncome ? (signature ? 'signed' : 'pending') : 'unverifiable',
-        signedBy: isIncome && signature ? address : undefined,
-        signedAt: isIncome && signature ? new Date() : undefined,
+        signatureStatus: (isIncome && type === 'invoice') || (!isIncome && type === 'receipt')
+          ? (signature ? 'signed' : 'pending')
+          : 'unverifiable',
+        signedBy: signature ? address : undefined,
+        signedAt: signature ? new Date() : undefined,
         signature,
         signedMessage,
       });
@@ -137,8 +140,10 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
         transactionStatus: txDetails.status,
         issuer: 'ProofPay',
         chainId: Number(transaction.chain),
-        signatureStatus: isIncome ? (signature ? 'signed' : 'pending') : 'unverifiable',
-        signedBy: isIncome && signature ? address : undefined,
+        signatureStatus: (isIncome && type === 'invoice') || (!isIncome && type === 'receipt')
+          ? (signature ? 'signed' : 'pending')
+          : 'unverifiable',
+        signedBy: signature ? address : undefined,
       });
 
       // 保存 PDF
@@ -283,7 +288,7 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
         />
       </div>
 
-      {isIncome && (
+      {((isIncome && type === 'invoice') || (!isIncome && type === 'receipt')) && (
         <div className="rounded-md bg-yellow-50 p-4">
           <div className="flex">
             <div className="flex-shrink-0">
@@ -294,7 +299,9 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
             <div className="ml-3">
               <h3 className="text-sm font-medium text-yellow-800">需要签名确认</h3>
               <div className="mt-2 text-sm text-yellow-700">
-                <p>生成收入发票需要您使用钱包签名，以证明您是此笔收入的接收方。</p>
+                <p>{isIncome 
+                  ? '生成收入发票需要您使用钱包签名，以证明您是此笔收入的接收方。'
+                  : '生成支出收据需要您使用钱包签名，以证明您是此笔支出的支付方。'}</p>
               </div>
             </div>
           </div>
@@ -336,7 +343,9 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
           disabled={isLoading}
           className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
         >
-          {isLoading ? '处理中...' : `生成${type === 'invoice' ? '发票' : '收据'}`}
+          {isLoading ? '处理中...' : `生成${type === 'invoice' 
+            ? '发票' 
+            : (!isIncome ? '支出凭证' : '收据')}`}
         </button>
       </div>
     </form>
