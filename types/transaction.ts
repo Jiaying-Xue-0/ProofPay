@@ -6,4 +6,6 @@ export interface Transaction {
   value: string;
   tokenSymbol: string;
   chain: 'ethereum' | 'solana';
+  contractAddress?: string;
+  decimals?: number;
 } 

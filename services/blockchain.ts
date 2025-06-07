@@ -135,15 +135,34 @@ class BlockchainService {
         const startTimestamp = Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60; // 30 days ago
         return response.data.result
           .filter((tx: any) => parseInt(tx.timeStamp) >= startTimestamp)
-          .map((tx: any) => ({
-            hash: tx.hash,
-            timestamp: parseInt(tx.timeStamp),
-            from: tx.from,
-            to: tx.to,
-            value: tx.value,
-            tokenSymbol: type === 'normal' ? network.toUpperCase() : tx.tokenSymbol,
-            chain: network,
-          }));
+          .map((tx: any) => {
+            // 处理原生代币交易
+            if (type === 'normal') {
+              return {
+                hash: tx.hash,
+                timestamp: parseInt(tx.timeStamp),
+                from: tx.from,
+                to: tx.to,
+                value: tx.value,
+                tokenSymbol: network.toUpperCase(),
+                chain: network,
+                decimals: 18, // 原生代币（ETH等）都是18位小数
+              };
+            }
+            
+            // 处理代币交易
+            return {
+              hash: tx.hash,
+              timestamp: parseInt(tx.timeStamp),
+              from: tx.from,
+              to: tx.to,
+              value: tx.value,
+              tokenSymbol: tx.tokenSymbol,
+              chain: network,
+              contractAddress: tx.contractAddress,
+              decimals: parseInt(tx.tokenDecimal), // Etherscan API 返回的代币精度
+            };
+          });
       }
 
       return [];
