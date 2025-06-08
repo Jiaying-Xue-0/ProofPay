@@ -23,19 +23,27 @@ export function WalletSwitcher() {
     setMainWallet,
     setCurrentConnectedWallet,
     removeWallet,
+    resetAllWalletData,
+    isSubWallet,
   } = useWalletStore();
 
   // 监听连接状态变化
   useEffect(() => {
     if (!isConnected && !isDisconnecting) {
       setCurrentConnectedWallet(null);
+      // 不再自动清除所有钱包数据
     } else if (address && !isDisconnecting) {
-      if (!mainWallet) {
+      // 检查是否是子钱包
+      const isConnectedWalletSubWallet = isSubWallet(address);
+      
+      // 如果不是子钱包，并且没有主钱包，则设置为主钱包
+      if (!isConnectedWalletSubWallet && !mainWallet) {
         setMainWallet(address);
       }
+      
       setCurrentConnectedWallet(address);
     }
-  }, [isConnected, address, mainWallet, isDisconnecting]);
+  }, [isConnected, address, mainWallet, isDisconnecting, setMainWallet, setCurrentConnectedWallet, isSubWallet]);
 
   useEffect(() => {
     if (error) {
