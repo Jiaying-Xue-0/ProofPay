@@ -141,8 +141,8 @@ class BlockchainService {
         return response.data.result
           .filter((tx: any) => parseInt(tx.timeStamp) >= startTimestamp)
           .map((tx: any) => {
-            // 处理原生代币交易
-            if (type === 'normal') {
+            if (type === 'normal' && tx.value !== '0') {
+              // 只处理有价值的原生代币交易
               return {
                 hash: tx.hash,
                 timestamp: parseInt(tx.timeStamp),
@@ -153,21 +153,23 @@ class BlockchainService {
                 chain: network,
                 decimals: 18, // 原生代币（ETH等）都是18位小数
               };
+            } else if (type === 'token') {
+              // 处理代币交易
+              return {
+                hash: tx.hash,
+                timestamp: parseInt(tx.timeStamp),
+                from: tx.from,
+                to: tx.to,
+                value: tx.value,
+                tokenSymbol: tx.tokenSymbol,
+                chain: network,
+                contractAddress: tx.contractAddress,
+                decimals: parseInt(tx.tokenDecimal), // Etherscan API 返回的代币精度
+              };
             }
-            
-            // 处理代币交易
-            return {
-              hash: tx.hash,
-              timestamp: parseInt(tx.timeStamp),
-              from: tx.from,
-              to: tx.to,
-              value: tx.value,
-              tokenSymbol: tx.tokenSymbol,
-              chain: network,
-              contractAddress: tx.contractAddress,
-              decimals: parseInt(tx.tokenDecimal), // Etherscan API 返回的代币精度
-            };
-          });
+            return null;
+          })
+          .filter(Boolean); // 移除空值
       }
 
       return [];

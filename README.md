@@ -1,83 +1,109 @@
-# ProofPay - Web3 发票生成器
+# ProofPay - 区块链支付凭证生成器
 
-ProofPay 是一个基于 Web3 的发票生成器，允许用户为区块链上的交易生成专业的发票和收据。
+ProofPay 是一个基于区块链的支付凭证生成工具，帮助用户将链上交易转换为标准化的电子凭证。
 
 ## 在线演示
 
 🚀 访问在线演示：[https://proof-pay.vercel.app/](https://proof-pay.vercel.app/)
 
-## 功能特点
+## 主要功能
 
-- 🔗 支持以太坊网络
-- 📄 生成专业的发票和收据
-- 💾 本地保存历史记录
-- 🔍 交易历史查询和筛选
-- 📱 响应式设计，支持移动端
-- 🏷️ 交易标签管理
+### 1. 多钱包管理
+- 支持设置主钱包和子钱包
+- 便捷的钱包切换功能
+- 钱包验证和管理系统
+
+### 2. 交易记录
+- 自动获取最近30天的交易历史
+- 支持多种代币交易（原生代币和 ERC20 代币）
+- 交易分类显示（收入/支出）
+- 实时交易状态查询
+
+### 3. 凭证生成
+- 自动提取交易信息
+- 支持自定义凭证信息
+  - 客户名称和地址
+  - 交易描述
+  - 标签管理
+  - 附加说明
+- 专业的 PDF 凭证生成
+- 区块链验证信息集成
+
+### 4. 凭证管理
+- 历史凭证查询
+- 多维度筛选
+  - 按类型（收入/支出）
+  - 按代币类型
+  - 按日期范围
+- 凭证预览和下载
+
+### 5. 区块链集成
+- 支持多链交易查询
+  - 以太坊主网
+  - Polygon
+  - Optimism
+  - Arbitrum
+- 区块链浏览器链接集成
+- 交易状态实时验证
+
+### 6. 安全特性
+- 钱包签名验证
+- 交易真实性验证
+- 凭证防伪机制
 
 ## 技术栈
 
-- Next.js 14
-- TypeScript
-- RainbowKit & Wagmi
-- Etherscan API
-- TailwindCSS
-- Headless UI
+- 前端框架：React + Next.js
+- 区块链交互：ethers.js + wagmi
+- 钱包连接：RainbowKit
+- UI 框架：Tailwind CSS
+- PDF 生成：jsPDF
+- 状态管理：Zustand
 
 ## 开始使用
 
-1. 克隆仓库：
-
+1. 克隆仓库
 ```bash
-git clone https://github.com/Jiaying-Xue-0/ProoPay.git
-cd ProoPay
+git clone https://github.com/your-username/proofpay.git
 ```
 
-2. 安装依赖：
-
+2. 安装依赖
 ```bash
+cd proofpay
 npm install
 ```
 
-3. 配置环境变量：
-
-创建 `.env.local` 文件并添加以下配置：
-
-```env
-NEXT_PUBLIC_ETHERSCAN_API_KEY=your_etherscan_api_key
-NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID=your_wallet_connect_project_id
+3. 配置环境变量
+```bash
+cp .env.example .env.local
+# 编辑 .env.local 文件，添加必要的 API 密钥
 ```
 
-4. 启动开发服务器：
-
+4. 启动开发服务器
 ```bash
 npm run dev
 ```
 
-访问 [http://localhost:3000](http://localhost:3000) 查看应用。
+## 环境变量配置
 
-## 使用说明
+必要的环境变量：
+- `NEXT_PUBLIC_ETHERSCAN_API_KEY`: Etherscan API 密钥
+- `NEXT_PUBLIC_WALLET_CONNECT_ID`: WalletConnect 项目 ID
 
-1. 连接钱包：点击右上角的"Connect Wallet"按钮连接你的 Web3 钱包
-2. 查看交易：连接成功后自动显示最近 30 天的交易记录
-3. 生成文档：
-   - 点击交易记录可以选择生成发票或收据
-   - 填写必要信息（客户名称、描述等）
-   - 可以添加标签和备注
-   - 生成 PDF 文档
-4. 历史记录：可以查看之前生成的所有文档
+## 使用流程
 
-## 开发计划
-
-- [ ] 支持更多区块链网络（Solana、Polygon 等）
-- [ ] 自定义发票模板
-- [ ] 批量生成功能
-- [ ] 导出财务报表
-- [ ] 多语言支持
+1. 连接钱包
+2. 选择要处理的交易
+3. 填写凭证信息
+4. 生成并下载 PDF 凭证
+5. 在历史记录中管理凭证
 
 ## 贡献指南
 
-欢迎提交 Pull Request 和 Issue！
+欢迎提交 Pull Request 和 Issue。在提交之前，请确保：
+- 代码经过测试
+- 遵循现有的代码风格
+- 更新相关文档
 
 ## 许可证
 

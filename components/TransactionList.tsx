@@ -47,6 +47,17 @@ export function TransactionList({
     }
   });
 
+  // 在同一类型内去重：使用 Set 来存储已经看到的交易哈希和类型组合
+  const seenHashesWithType = new Set<string>();
+  const uniqueTransactions = filteredTransactions.filter(tx => {
+    const hashWithType = `${tx.hash}-${type}`;
+    if (seenHashesWithType.has(hashWithType)) {
+      return false;
+    }
+    seenHashesWithType.add(hashWithType);
+    return true;
+  });
+
   if (!address) {
     return (
       <div className="text-center py-10">
@@ -64,9 +75,9 @@ export function TransactionList({
       </div>
 
       <div className="space-y-4">
-        {filteredTransactions.map((tx) => (
+        {uniqueTransactions.map((tx) => (
           <div
-            key={tx.hash}
+            key={`${tx.hash}-${type}-${tx.timestamp}`}
             className="group relative bg-white/80 backdrop-blur-lg rounded-xl p-5 shadow-sm border border-gray-100 hover:border-indigo-100 hover:shadow-md transition-all duration-300 overflow-hidden cursor-pointer"
             onClick={() => onSelectTransaction(tx)}
           >

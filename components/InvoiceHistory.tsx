@@ -6,6 +6,7 @@ import { blockchain } from '../services/blockchain';
 import { Dialog } from '@headlessui/react';
 import { ethers } from 'ethers';
 import { useAccount } from 'wagmi';
+import { useWalletStore } from '../store/walletStore';
 
 interface Invoice {
   id: string;
@@ -38,7 +39,10 @@ interface FilterState {
 // 格式化金额的辅助函数
 const formatAmount = (amount: string, decimals: number): string => {
   try {
-    return ethers.utils.formatUnits(amount, decimals);
+    // 移除可能存在的小数部分，确保是整数字符串
+    const [integerPart] = amount.split('.');
+    const cleanAmount = integerPart.replace(/[^\d]/g, '');
+    return ethers.utils.formatUnits(cleanAmount, decimals);
   } catch (error) {
     console.error('Error formatting amount:', error);
     return amount;
