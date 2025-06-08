@@ -21,4 +21,5 @@ export interface InvoiceRecord {
   signature?: string;
   signedMessage?: string;
   createdAt: number;
+  blockNumber?: number;
 } 

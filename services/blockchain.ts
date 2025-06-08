@@ -18,11 +18,8 @@ const startTimestamp = Math.floor(Date.now() / 1000) - THIRTY_DAYS_IN_SECONDS;
 
 export interface TransactionDetails {
   blockNumber: number;
-  status: 'success' | 'failed';
-  timestamp: number;
-  from: string;
-  to: string;
-  value: string;
+  status: string;
+  chainId: number;
 }
 
 class BlockchainService {
@@ -77,10 +74,7 @@ class BlockchainService {
       return {
         blockNumber: parseInt(receipt.blockNumber, 16),
         status: receipt.status === '0x1' ? 'success' : 'failed',
-        timestamp: parseInt(blockResponse.data.result.timeStamp) * 1000, // 转换为毫秒
-        from: tx.from,
-        to: tx.to || '',
-        value: parseInt(tx.value, 16).toString(),
+        chainId: 1, // Assuming chainId is 1 for Ethereum
       };
     } catch (error) {
       console.error('Error fetching transaction details:', error);
