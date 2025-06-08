@@ -1,4 +1,6 @@
 import { InvoiceRecord } from '../types/storage';
+import { useWalletStore } from '../store/walletStore';
+import { Wallet } from '../store/walletStore';
 
 interface FilterParams {
   startDate?: number;
@@ -66,6 +68,26 @@ class StorageService {
   getInvoicesByAddress(address: string): InvoiceRecord[] {
     try {
       const invoices = this.getInvoices();
+      const walletStore = useWalletStore.getState();
+      const isMainWallet = walletStore.mainWallet?.toLowerCase() === address.toLowerCase();
+      const subWallets = walletStore.availableWallets;
+
+      // 如果是主钱包，返回主钱包和所有子钱包的记录
+      if (isMainWallet) {
+        const subWalletAddresses = subWallets
+          .filter((w: Wallet) => w.parentWallet.toLowerCase() === address.toLowerCase())
+          .map((w: Wallet) => w.address.toLowerCase());
+
+        return invoices.filter(
+          (invoice) =>
+            invoice.from.toLowerCase() === address.toLowerCase() ||
+            invoice.to.toLowerCase() === address.toLowerCase() ||
+            subWalletAddresses.includes(invoice.from.toLowerCase()) ||
+            subWalletAddresses.includes(invoice.to.toLowerCase())
+        );
+      }
+
+      // 如果是子钱包，只返回该钱包的记录
       return invoices.filter(
         (invoice) =>
           invoice.from.toLowerCase() === address.toLowerCase() ||

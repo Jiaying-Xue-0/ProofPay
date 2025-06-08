@@ -11,6 +11,7 @@ import { createWalletConnectSession } from '../utils/walletConnect';
 import { WalletSwitchingOverlay } from './WalletSwitchingOverlay';
 import { createPortal } from 'react-dom';
 import { ethers } from 'ethers';
+import { useAccount } from 'wagmi';
 
 interface Invoice {
   id: string;
@@ -62,16 +63,32 @@ export function InvoiceHistory() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [loadingStates, setLoadingStates] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
+  const { currentConnectedWallet } = useWalletStore();
+  const { address } = useAccount();
 
   const loadInvoices = useCallback(() => {
+    // 使用当前连接的钱包地址或主钱包地址
+    const walletAddress = currentConnectedWallet || address;
+    if (!walletAddress) return;
+
+    // 先根据钱包地址过滤
+    const walletInvoices = storage.getInvoicesByAddress(walletAddress);
+
+    // 再应用其他过滤条件
     const records = storage.filterInvoices({
       type: filter.type || undefined,
       tokenSymbol: filter.tokenSymbol || undefined,
       startDate: filter.startDate ? new Date(filter.startDate).getTime() : undefined,
       endDate: filter.endDate ? new Date(filter.endDate).getTime() : undefined,
     });
-    setInvoices(records);
-  }, [filter]);
+
+    // 取两个结果的交集
+    const filteredInvoices = records.filter(record => 
+      walletInvoices.some(invoice => invoice.id === record.id)
+    );
+
+    setInvoices(filteredInvoices);
+  }, [filter, currentConnectedWallet, address]);
 
   useEffect(() => {
     loadInvoices();
