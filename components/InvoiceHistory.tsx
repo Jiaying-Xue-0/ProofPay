@@ -4,12 +4,6 @@ import { format } from 'date-fns';
 import { generatePDF } from '../utils/pdfGenerator';
 import { blockchain } from '../services/blockchain';
 import { Dialog } from '@headlessui/react';
-import { useWalletStore } from '../store/walletStore';
-import { shortenAddress } from '../utils/address';
-import { QRCodeSVG } from 'qrcode.react';
-import { createWalletConnectSession } from '../utils/walletConnect';
-import { WalletSwitchingOverlay } from './WalletSwitchingOverlay';
-import { createPortal } from 'react-dom';
 import { ethers } from 'ethers';
 import { useAccount } from 'wagmi';
 

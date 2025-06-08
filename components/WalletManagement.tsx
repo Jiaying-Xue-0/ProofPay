@@ -4,8 +4,6 @@ import { useAccount, useConnect, useDisconnect, Connector } from 'wagmi';
 import { shortenAddress } from '../utils/address';
 import { QRCodeSVG } from 'qrcode.react';
 import { createWalletConnectSession } from '../utils/walletConnect';
-import { WalletSwitchingOverlay } from './WalletSwitchingOverlay';
-import { createPortal } from 'react-dom';
 
 export function WalletManagement() {
   const { address, isConnected, connector: activeConnector } = useAccount();
@@ -20,9 +18,7 @@ export function WalletManagement() {
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   const [waitForConnection, setWaitForConnection] = useState<(() => Promise<string>) | null>(null);
   const [successWalletAddress, setSuccessWalletAddress] = useState<string>('');
-  const [isSwitching, setIsSwitching] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
-  const [switchingToAddress, setSwitchingToAddress] = useState<string | null>(null);
 
   const {
     mainWallet,
@@ -32,6 +28,9 @@ export function WalletManagement() {
     removeWallet,
     setMainWallet,
     setCurrentConnectedWallet,
+    isSwitchingWallet,
+    switchingToAddress,
+    setSwitchingWallet,
   } = useWalletStore();
 
   // 生成签名消息
@@ -49,7 +48,7 @@ export function WalletManagement() {
   // 监听钱包连接状态变化
   useEffect(() => {
     // 只在非切换状态下处理连接变化
-    if (!isSwitching) {
+    if (!isSwitchingWallet) {
       if (!isConnected) {
         setCurrentConnectedWallet(null);
       } else if (address && !mainWallet) {
@@ -57,75 +56,44 @@ export function WalletManagement() {
         setCurrentConnectedWallet(address);
       }
     }
-  }, [isConnected, address, isSwitching, mainWallet, setMainWallet, setCurrentConnectedWallet]);
+  }, [isConnected, address, isSwitchingWallet, mainWallet, setMainWallet, setCurrentConnectedWallet]);
 
-  // 监听状态变化
-  useEffect(() => {
-    if (isSwitching && switchingToAddress) {
-      // 状态变化 - 显示过渡页面
-    }
-  }, [isSwitching, switchingToAddress]);
 
   // 处理钱包切换
   const handleWalletSwitch = useCallback(async (newAddress: string) => {
-    // 如果已经在切换中，直接返回
-    if (isSwitching) {
+    if (isSwitchingWallet) {
       return;
     }
 
     try {
-      // 同步更新状态
-      setIsSwitching(true);
-      setSwitchingToAddress(newAddress);
-
-      // 等待状态更新完成
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // 断开当前连接
+      setSwitchingWallet(true, newAddress);
+      setError(null);
+      setIsDisconnecting(true);
+      
       await disconnectAsync();
-
-      // 等待一段时间确保断开连接完成
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      try {
-        // 连接新钱包
-        const result = await connectAsync({
-          connector: activeConnector!,
-          chainId: 1,
-        });
+      const result = await connectAsync({
+        connector: activeConnector!,
+        chainId: 1,
+      });
 
-        // 验证连接的地址是否正确
-        if (!result.accounts?.[0] || result.accounts[0].toLowerCase() !== newAddress.toLowerCase()) {
-          throw new Error('请在MetaMask中选择正确的账户地址');
-        }
-
-        // 更新当前连接的钱包
-        setCurrentConnectedWallet(newAddress);
-        
-        // 等待一段时间后关闭过渡页面
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        // 只有在成功连接后才重置状态
-        setIsSwitching(false);
-        setSwitchingToAddress(null);
-        setError(null);
-      } catch (error: any) {
-        // 如果是用户取消或者选择了错误的地址，保持切换状态
-        if (error.message.includes('User rejected') || error.message.includes('请在MetaMask中选择正确的账户地址')) {
-          setError(error.message.includes('User rejected') ? '用户取消了操作' : error.message);
-          // 不重置切换状态，让用户可以重试
-          return;
-        }
-        throw error; // 其他错误继续向外抛出
+      if (!result.accounts?.[0] || result.accounts[0].toLowerCase() !== newAddress.toLowerCase()) {
+        throw new Error('请在MetaMask中选择正确的账户地址');
       }
+
+      setCurrentConnectedWallet(newAddress);
+      await new Promise(resolve => setTimeout(resolve, 500));
+
     } catch (error: any) {
-      if (error.message.includes('already pending')) {
-        setError('有一个切换请求正在进行中，请等待完成后再试');
+      if (error.message.includes('User rejected') || error.message.includes('请在MetaMask中选择正确的账户地址')) {
+        setError(error.message.includes('User rejected') ? '用户取消了操作' : error.message);
+        await new Promise(resolve => setTimeout(resolve, 1500));
       } else {
         setError(error.message || '切换钱包失败，请重试');
+        await new Promise(resolve => setTimeout(resolve, 1500));
       }
       
-      // 尝试恢复之前的连接
       try {
         if (activeConnector) {
           await connectAsync({
@@ -134,15 +102,14 @@ export function WalletManagement() {
           });
         }
       } catch (e) {
-        // 恢复连接失败，继续处理
+        console.error('Failed to recover connection:', e);
       }
-
-      // 只有在发生严重错误时才重置状态
-      setIsSwitching(false);
-      setSwitchingToAddress(null);
+    } finally {
+      setSwitchingWallet(false, null);
       setError(null);
+      setIsDisconnecting(false);
     }
-  }, [activeConnector, connectAsync, disconnectAsync, setCurrentConnectedWallet, isSwitching]);
+  }, [activeConnector, connectAsync, disconnectAsync, setCurrentConnectedWallet, setSwitchingWallet, isSwitchingWallet]);
 
   // 处理开始验证
   const handleStartVerification = useCallback(async () => {
@@ -302,10 +269,10 @@ export function WalletManagement() {
     return (
       <button
         onClick={() => handleWalletSwitch(targetAddress)}
-        disabled={isSwitching}
+        disabled={isSwitchingWallet}
         className="inline-flex items-center px-3 py-1.5 border border-indigo-600 text-xs font-medium rounded-lg text-indigo-600 bg-white hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {isSwitching ? (
+        {isSwitchingWallet ? (
           <>
             <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -318,7 +285,7 @@ export function WalletManagement() {
         )}
       </button>
     );
-  }, [isSwitching, handleWalletSwitch]);
+  }, [isSwitchingWallet, handleWalletSwitch]);
 
   // 如果没有连接钱包，不显示任何内容
   if (!isConnected || !address) {
@@ -327,12 +294,6 @@ export function WalletManagement() {
 
   return (
     <div className="relative">
-      {/* 切换过渡页面 */}
-      {isSwitching && switchingToAddress && createPortal(
-        <WalletSwitchingOverlay targetAddress={switchingToAddress} />,
-        document.body
-      )}
-
       {/* 主要内容 */}
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="bg-white shadow sm:rounded-lg overflow-hidden border border-gray-100">

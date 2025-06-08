@@ -11,6 +11,8 @@ import { blockchain } from '../services/blockchain';
 import { Dialog } from '@headlessui/react';
 import { WalletSwitcher } from '../components/WalletSwitcher';
 import { WalletManagement } from '../components/WalletManagement';
+import { useWalletStore } from '../store/walletStore';
+import { WalletSwitchingOverlay } from '../components/WalletSwitchingOverlay';
 
 export default function Home() {
   const { address, isConnected, chain } = useAccount();
@@ -22,6 +24,9 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showWalletManagement, setShowWalletManagement] = useState(false);
+
+  // Get wallet switching state from store
+  const { isSwitchingWallet, switchingToAddress } = useWalletStore();
 
   const fetchTransactions = useCallback(async () => {
     if (!address || !chain) return;
@@ -83,150 +88,157 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <nav className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-gray-900">ProofPay</h1>
-            <div className="flex items-center space-x-4">
-              <WalletSwitcher />
-              <ConnectButton />
+    <div className="min-h-screen bg-gray-50">
+      {/* Global wallet switching overlay */}
+      {isSwitchingWallet && switchingToAddress && (
+        <WalletSwitchingOverlay targetAddress={switchingToAddress} />
+      )}
+
+      <main className="min-h-screen bg-gray-50">
+        {/* Header */}
+        <nav className="bg-white shadow-sm">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div className="flex justify-between items-center">
+              <h1 className="text-2xl font-bold text-gray-900">ProofPay</h1>
+              <div className="flex items-center space-x-4">
+                <WalletSwitcher />
+                <ConnectButton />
+              </div>
             </div>
           </div>
+        </nav>
+
+        {/* Main Content */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {!isConnected ? (
+            <div className="text-center py-12">
+              <h2 className="text-xl font-semibold text-gray-900">
+                请连接钱包以开始使用 ProofPay
+              </h2>
+              <p className="mt-2 text-gray-600">
+                连接钱包后可以查看交易记录并生成发票或收据
+              </p>
+            </div>
+          ) : (
+            <div>
+              {/* Tabs */}
+              <div className="border-b border-gray-200">
+                <nav className="-mb-px flex space-x-8">
+                  <button
+                    onClick={() => {
+                      setShowHistory(false);
+                      setShowWalletManagement(false);
+                      setActiveTab('income');
+                    }}
+                    className={`${
+                      !showHistory && !showWalletManagement && activeTab === 'income'
+                        ? 'border-indigo-500 text-indigo-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                  >
+                    收入发票/收据
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowHistory(false);
+                      setShowWalletManagement(false);
+                      setActiveTab('expense');
+                    }}
+                    className={`${
+                      !showHistory && !showWalletManagement && activeTab === 'expense'
+                        ? 'border-indigo-500 text-indigo-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                  >
+                    支出账单
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowHistory(true);
+                      setShowWalletManagement(false);
+                    }}
+                    className={`${
+                      showHistory
+                        ? 'border-indigo-500 text-indigo-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                  >
+                    历史记录
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowHistory(false);
+                      setShowWalletManagement(false);
+                    }}
+                    className="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
+                  >
+                    发起收款请求
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowHistory(false);
+                      setShowWalletManagement(true);
+                    }}
+                    className={`${
+                      showWalletManagement
+                        ? 'border-indigo-500 text-indigo-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                  >
+                    子钱包管理
+                  </button>
+                </nav>
+              </div>
+
+              {/* Content */}
+              <div className="mt-6">
+                {showHistory ? (
+                  <InvoiceHistory />
+                ) : showWalletManagement ? (
+                  <WalletManagement />
+                ) : loading ? (
+                  <div className="text-center py-12">
+                    <p className="text-gray-600">加载中...</p>
+                  </div>
+                ) : transactions.length > 0 ? (
+                  <TransactionList
+                    transactions={transactions}
+                    onSelectTransaction={handleTransactionSelect}
+                    type={activeTab as 'income' | 'expense'}
+                  />
+                ) : (
+                  <div className="text-center py-12">
+                    <p className="text-gray-600">暂无交易记录</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
-      </nav>
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {!isConnected ? (
-          <div className="text-center py-12">
-            <h2 className="text-xl font-semibold text-gray-900">
-              请连接钱包以开始使用 ProofPay
-            </h2>
-            <p className="mt-2 text-gray-600">
-              连接钱包后可以查看交易记录并生成发票或收据
-            </p>
-          </div>
-        ) : (
-          <div>
-            {/* Tabs */}
-            <div className="border-b border-gray-200">
-              <nav className="-mb-px flex space-x-8">
-                <button
-                  onClick={() => {
-                    setShowHistory(false);
-                    setShowWalletManagement(false);
-                    setActiveTab('income');
-                  }}
-                  className={`${
-                    !showHistory && !showWalletManagement && activeTab === 'income'
-                      ? 'border-indigo-500 text-indigo-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-                >
-                  收入发票/收据
-                </button>
-                <button
-                  onClick={() => {
-                    setShowHistory(false);
-                    setShowWalletManagement(false);
-                    setActiveTab('expense');
-                  }}
-                  className={`${
-                    !showHistory && !showWalletManagement && activeTab === 'expense'
-                      ? 'border-indigo-500 text-indigo-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-                >
-                  支出账单
-                </button>
-                <button
-                  onClick={() => {
-                    setShowHistory(true);
-                    setShowWalletManagement(false);
-                  }}
-                  className={`${
-                    showHistory
-                      ? 'border-indigo-500 text-indigo-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-                >
-                  历史记录
-                </button>
-                <button
-                  onClick={() => {
-                    setShowHistory(false);
-                    setShowWalletManagement(false);
-                  }}
-                  className="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
-                >
-                  发起收款请求
-                </button>
-                <button
-                  onClick={() => {
-                    setShowHistory(false);
-                    setShowWalletManagement(true);
-                  }}
-                  className={`${
-                    showWalletManagement
-                      ? 'border-indigo-500 text-indigo-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-                >
-                  子钱包管理
-                </button>
-              </nav>
-            </div>
-
-            {/* Content */}
-            <div className="mt-6">
-              {showHistory ? (
-                <InvoiceHistory />
-              ) : showWalletManagement ? (
-                <WalletManagement />
-              ) : loading ? (
-                <div className="text-center py-12">
-                  <p className="text-gray-600">加载中...</p>
-                </div>
-              ) : transactions.length > 0 ? (
-                <TransactionList
-                  transactions={transactions}
-                  onSelectTransaction={handleTransactionSelect}
-                  type={activeTab as 'income' | 'expense'}
+        {/* Invoice/Receipt Form Dialog */}
+        <Dialog
+          open={isFormOpen}
+          onClose={() => setIsFormOpen(false)}
+          className="relative z-50"
+        >
+          <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+          <div className="fixed inset-0 flex items-center justify-center p-4">
+            <Dialog.Panel className="mx-auto max-w-xl rounded bg-white p-6">
+              <Dialog.Title className="text-lg font-medium leading-6 text-gray-900 mb-4">
+                生成{formType === 'income' ? '收入' : '支出'}凭证
+              </Dialog.Title>
+              {selectedTransaction && (
+                <InvoiceForm
+                  transaction={selectedTransaction}
+                  type={formType}
+                  onClose={() => setIsFormOpen(false)}
                 />
-              ) : (
-                <div className="text-center py-12">
-                  <p className="text-gray-600">暂无交易记录</p>
-                </div>
               )}
-            </div>
+            </Dialog.Panel>
           </div>
-        )}
-      </div>
-
-      {/* Invoice/Receipt Form Dialog */}
-      <Dialog
-        open={isFormOpen}
-        onClose={() => setIsFormOpen(false)}
-        className="relative z-50"
-      >
-        <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
-        <div className="fixed inset-0 flex items-center justify-center p-4">
-          <Dialog.Panel className="mx-auto max-w-xl rounded bg-white p-6">
-            <Dialog.Title className="text-lg font-medium leading-6 text-gray-900 mb-4">
-              生成{formType === 'income' ? '收入' : '支出'}凭证
-            </Dialog.Title>
-            {selectedTransaction && (
-              <InvoiceForm
-                transaction={selectedTransaction}
-                type={formType}
-                onClose={() => setIsFormOpen(false)}
-              />
-            )}
-          </Dialog.Panel>
-        </div>
-      </Dialog>
-    </main>
+        </Dialog>
+      </main>
+    </div>
   );
 }

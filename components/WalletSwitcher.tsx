@@ -3,7 +3,6 @@ import { useWalletStore } from '../store/walletStore';
 import { useAccount, useConnect, useDisconnect } from 'wagmi';
 import { shortenAddress } from '../utils/address';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
-import { WalletSwitchingOverlay } from './WalletSwitchingOverlay';
 
 export function WalletSwitcher() {
   const { address, isConnected } = useAccount();
@@ -12,8 +11,6 @@ export function WalletSwitcher() {
   const { openConnectModal } = useConnectModal();
   const [isOpen, setIsOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isSwitching, setIsSwitching] = useState(false);
-  const [switchingToAddress, setSwitchingToAddress] = useState<string | null>(null);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
 
   const {
@@ -23,8 +20,11 @@ export function WalletSwitcher() {
     setMainWallet,
     setCurrentConnectedWallet,
     removeWallet,
-    resetAllWalletData,
     isSubWallet,
+    resetAllWalletData,
+    isSwitchingWallet,
+    switchingToAddress,
+    setSwitchingWallet,
   } = useWalletStore();
 
   // 监听连接状态变化
@@ -45,38 +45,17 @@ export function WalletSwitcher() {
     }
   }, [isConnected, address, mainWallet, isDisconnecting, setMainWallet, setCurrentConnectedWallet, isSubWallet]);
 
-  useEffect(() => {
-    if (error) {
-      const timer = setTimeout(() => {
-        setError(null);
-      }, 3000);
-
-      return () => clearTimeout(timer);
-    }
-  }, [error]);
-
-  // 如果正在切换钱包，显示过渡页面而不是初始页面
-  if (isSwitching && switchingToAddress) {
-    return <WalletSwitchingOverlay targetAddress={switchingToAddress} />;
-  }
-
-  // 如果没有连接钱包且不是在切换过程中，不显示任何内容
-  if (!isConnected && !isSwitching) {
-    return null;
-  }
-
   const handleWalletSwitch = async (newAddress: string) => {
+    if (isSwitchingWallet) {
+      return;
+    }
+
     try {
-      // 设置切换状态
-      setIsSwitching(true);
-      setSwitchingToAddress(newAddress);
+      setSwitchingWallet(true, newAddress);
       setError(null);
       setIsOpen(false);
-
-      // 标记正在断开连接
       setIsDisconnecting(true);
       
-      // 断开当前连接
       await disconnectAsync();
 
       const connector = connectors.find(c => c.id === 'metaMask');
@@ -84,32 +63,23 @@ export function WalletSwitcher() {
         throw new Error('MetaMask connector not found');
       }
 
-      // 连接新钱包
       const result = await connectAsync({ connector });
 
-      // 验证连接的地址是否正确
       if (!result.accounts?.[0] || result.accounts[0].toLowerCase() !== newAddress.toLowerCase()) {
         throw new Error('请在MetaMask中选择正确的账户地址');
       }
 
-      // 更新状态
       setCurrentConnectedWallet(newAddress);
-      
-      // 成功后等待一小段时间再关闭过渡页面
       await new Promise(resolve => setTimeout(resolve, 500));
 
     } catch (error: any) {
-      console.error('Failed to switch wallet:', error);
-      
       if (error.message.includes('User rejected')) {
         setError('用户取消了操作');
         await new Promise(resolve => setTimeout(resolve, 1500));
       } else {
         setError(error.message || '切换钱包失败，请重试');
-        await new Promise(resolve => setTimeout(resolve, 1500));
       }
       
-      // 尝试恢复之前的连接
       try {
         const connector = connectors.find(c => c.id === 'metaMask');
         if (connector) {
@@ -119,9 +89,7 @@ export function WalletSwitcher() {
         console.error('Failed to recover connection:', e);
       }
     } finally {
-      // 重置所有状态
-      setIsSwitching(false);
-      setSwitchingToAddress(null);
+      setSwitchingWallet(false, null);
       setError(null);
       setIsDisconnecting(false);
     }
@@ -183,10 +151,10 @@ export function WalletSwitcher() {
                   ) : (
                     <button
                       onClick={() => handleWalletSwitch(mainWallet!)}
-                      disabled={isSwitching}
+                      disabled={isSwitchingWallet}
                       className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {isSwitching ? (
+                      {isSwitchingWallet ? (
                         <div className="flex items-center">
                           <svg className="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -233,17 +201,11 @@ export function WalletSwitcher() {
                         ) : (
                           <div className="flex items-center space-x-1">
                             <button
-                              onClick={() => {
-                                // 设置切换状态和目标地址
-                                setIsSwitching(true);
-                                setSwitchingToAddress(wallet.address);
-                                // 调用切换函数
-                                handleWalletSwitch(wallet.address);
-                              }}
-                              disabled={isSwitching}
+                              onClick={() => handleWalletSwitch(wallet.address)}
+                              disabled={isSwitchingWallet}
                               className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                              {isSwitching ? (
+                              {isSwitchingWallet ? (
                                 <div className="flex items-center">
                                   <svg className="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>

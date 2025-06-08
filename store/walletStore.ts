@@ -13,6 +13,8 @@ interface WalletState {
   mainWallet: string | null;
   currentConnectedWallet: string | null;
   availableWallets: Wallet[];
+  isSwitchingWallet: boolean;
+  switchingToAddress: string | null;
   setMainWallet: (address: string | null) => void;
   setCurrentConnectedWallet: (address: string | null) => void;
   addWallet: (wallet: Wallet) => void;
@@ -21,6 +23,7 @@ interface WalletState {
   resetAllWalletData: () => void;
   isSubWallet: (address: string) => boolean;
   verifyWalletOwnership: (address: string, provider: any) => Promise<boolean>;
+  setSwitchingWallet: (isSwitching: boolean, targetAddress: string | null) => void;
 }
 
 export const useWalletStore = create<WalletState>()(
@@ -29,6 +32,8 @@ export const useWalletStore = create<WalletState>()(
       mainWallet: null,
       currentConnectedWallet: null,
       availableWallets: [],
+      isSwitchingWallet: false,
+      switchingToAddress: null,
       
       setMainWallet: (address) => {
         // 如果是子钱包，不设置为主钱包
@@ -131,6 +136,9 @@ export const useWalletStore = create<WalletState>()(
           return false;
         }
       },
+
+      setSwitchingWallet: (isSwitching, targetAddress) =>
+        set({ isSwitchingWallet: isSwitching, switchingToAddress: targetAddress }),
     }),
     {
       name: 'wallet-storage',
