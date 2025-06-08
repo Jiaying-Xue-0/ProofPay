@@ -4,6 +4,13 @@ import { format } from 'date-fns';
 import { generatePDF } from '../utils/pdfGenerator';
 import { blockchain } from '../services/blockchain';
 import { Dialog } from '@headlessui/react';
+import { useWalletStore } from '../store/walletStore';
+import { shortenAddress } from '../utils/address';
+import { QRCodeSVG } from 'qrcode.react';
+import { createWalletConnectSession } from '../utils/walletConnect';
+import { WalletSwitchingOverlay } from './WalletSwitchingOverlay';
+import { createPortal } from 'react-dom';
+import { ethers } from 'ethers';
 
 interface Invoice {
   id: string;
@@ -23,6 +30,7 @@ interface Invoice {
   blockNumber?: number;
   signatureStatus: 'pending' | 'signed' | 'mismatch' | 'unverifiable';
   signedBy?: string;
+  decimals: number;
 }
 
 interface FilterState {
@@ -31,6 +39,16 @@ interface FilterState {
   startDate: string;
   endDate: string;
 }
+
+// 格式化金额的辅助函数
+const formatAmount = (amount: string, decimals: number): string => {
+  try {
+    return ethers.utils.formatUnits(amount, decimals);
+  } catch (error) {
+    console.error('Error formatting amount:', error);
+    return amount;
+  }
+};
 
 export function InvoiceHistory() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -267,7 +285,7 @@ export function InvoiceHistory() {
                   <p className="text-sm text-gray-600 line-clamp-1">{invoice.description}</p>
                   <div className="mt-1.5 flex items-center space-x-2">
                     <span className="text-sm font-semibold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                      {invoice.amount} {invoice.tokenSymbol}
+                      {formatAmount(invoice.amount, invoice.decimals)} {invoice.tokenSymbol}
                     </span>
                     {invoice.tags && invoice.tags.length > 0 && (
                       <>
@@ -357,7 +375,7 @@ export function InvoiceHistory() {
                   <div className="space-y-1">
                     <h4 className="text-sm font-medium text-gray-500">金额</h4>
                     <p className="text-sm font-semibold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                      {selectedInvoice.amount} {selectedInvoice.tokenSymbol}
+                      {formatAmount(selectedInvoice.amount, selectedInvoice.decimals)} {selectedInvoice.tokenSymbol}
                     </p>
                   </div>
                   <div className="col-span-2 space-y-1">

@@ -21,16 +21,19 @@ class StorageService {
   }
 
   saveInvoice(invoice: Omit<InvoiceRecord, 'id' | 'createdAt'>): InvoiceRecord {
-    const invoices = this.getAllInvoices();
-    const newInvoice: InvoiceRecord = {
-      ...invoice,
-      id: invoice.documentId,
-      createdAt: Date.now(),
-    };
-    
-    invoices.push(newInvoice);
-    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(invoices));
-    return newInvoice;
+    try {
+      const records = this.getInvoices();
+      const newInvoice: InvoiceRecord = {
+        ...invoice,
+        id: crypto.randomUUID(),
+        createdAt: Date.now(),
+      };
+      records.push(newInvoice);
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(records));
+      return newInvoice;
+    } catch (error) {
+      throw new Error('保存发票失败');
+    }
   }
 
   getInvoice(id: string): InvoiceRecord | null {
@@ -92,6 +95,9 @@ class StorageService {
       if (params.tokenSymbol) {
         records = records.filter((record) => record.tokenSymbol === params.tokenSymbol);
       }
+
+      // 按创建时间倒序排序
+      records.sort((a, b) => b.createdAt - a.createdAt);
 
       return records;
     } catch (error) {

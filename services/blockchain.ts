@@ -22,6 +22,17 @@ export interface TransactionDetails {
   chainId: number;
 }
 
+// 获取网络的原生代币符号
+const getNativeTokenSymbol = (network: 'ethereum' | 'polygon' | 'optimism' | 'arbitrum'): string => {
+  const symbols = {
+    ethereum: 'ETH',
+    polygon: 'MATIC',
+    optimism: 'ETH',
+    arbitrum: 'ETH'
+  };
+  return symbols[network];
+};
+
 class BlockchainService {
   async getTransactionDetails(txHash: string): Promise<TransactionDetails | null> {
     try {
@@ -138,7 +149,7 @@ class BlockchainService {
                 from: tx.from,
                 to: tx.to,
                 value: tx.value,
-                tokenSymbol: network.toUpperCase(),
+                tokenSymbol: getNativeTokenSymbol(network),
                 chain: network,
                 decimals: 18, // 原生代币（ETH等）都是18位小数
               };

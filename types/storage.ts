@@ -10,6 +10,7 @@ export interface InvoiceRecord {
   description: string;
   amount: string;
   tokenSymbol: string;
+  decimals: number;
   date: number;
   from: string;
   to: string;
