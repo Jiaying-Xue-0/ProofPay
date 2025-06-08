@@ -27,6 +27,11 @@ export function WalletSwitcher() {
     setSwitchingWallet,
   } = useWalletStore();
 
+  // 如果未连接钱包，不显示组件
+  if (!isConnected) {
+    return null;
+  }
+
   // 监听连接状态变化
   useEffect(() => {
     if (!isConnected && !isDisconnecting) {
