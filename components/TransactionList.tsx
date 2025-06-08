@@ -4,6 +4,7 @@ import { getExplorerUrl } from '@/utils/explorer';
 import { shortenAddress } from '@/utils/address';
 // Import ethers for handling large numbers and formatting ETH
 import { ethers } from 'ethers';
+import { useWalletStore } from '../store/walletStore';
 
 interface TransactionListProps {
   transactions: Transaction[];
@@ -26,8 +27,25 @@ const formatTokenAmount = (amount: string, tokenSymbol: string, decimals?: numbe
   }
 };
 
-export function TransactionList({ transactions, onSelectTransaction, type }: TransactionListProps) {
+export function TransactionList({
+  transactions,
+  onSelectTransaction,
+  type,
+}: TransactionListProps) {
   const { address } = useAccount();
+  const { currentConnectedWallet } = useWalletStore();
+
+  // 根据当前连接的钱包地址过滤交易
+  const filteredTransactions = transactions.filter((tx) => {
+    const walletAddress = currentConnectedWallet || address;
+    if (!walletAddress) return false;
+
+    if (type === 'income') {
+      return tx.to.toLowerCase() === walletAddress.toLowerCase();
+    } else {
+      return tx.from.toLowerCase() === walletAddress.toLowerCase();
+    }
+  });
 
   if (!address) {
     return (
@@ -44,7 +62,7 @@ export function TransactionList({ transactions, onSelectTransaction, type }: Tra
       </div>
 
       <div className="space-y-4">
-        {transactions.map((tx) => (
+        {filteredTransactions.map((tx) => (
           <div
             key={tx.hash}
             className="bg-white p-4 rounded-lg shadow hover:shadow-md transition-shadow cursor-pointer"

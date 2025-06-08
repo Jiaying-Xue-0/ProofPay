@@ -16,15 +16,20 @@
     "@solana/web3.js": "^1.98.2",
     "@tailwindcss/forms": "^0.5.10",
     "@tanstack/react-query": "^5.77.0",
+    "@wagmi/core": "^2.17.2",
+    "@walletconnect/sign-client": "^2.21.1",
+    "@web3modal/standalone": "^2.4.3",
     "axios": "^1.9.0",
     "date-fns": "^4.1.0",
     "ethers": "^5.8.0",
     "jspdf": "^2.5.1",
     "next": "15.3.2",
+    "qrcode.react": "^4.2.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "viem": "^2.30.1",
-    "wagmi": "^2.15.4"
+    "wagmi": "^2.15.4",
+    "zustand": "^5.0.5"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

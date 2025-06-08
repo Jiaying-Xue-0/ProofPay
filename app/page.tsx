@@ -9,6 +9,8 @@ import { InvoiceHistory } from '../components/InvoiceHistory';
 import { Transaction } from '../types/transaction';
 import { blockchain } from '../services/blockchain';
 import { Dialog } from '@headlessui/react';
+import { WalletSwitcher } from '../components/WalletSwitcher';
+import { WalletManagement } from '../components/WalletManagement';
 
 export default function Home() {
   const { address, isConnected, chain } = useAccount();
@@ -19,6 +21,7 @@ export default function Home() {
   const [formType, setFormType] = useState<'invoice' | 'receipt'>('invoice');
   const [loading, setLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showWalletManagement, setShowWalletManagement] = useState(false);
 
   const fetchTransactions = useCallback(async () => {
     if (!address || !chain) return;
@@ -86,7 +89,10 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
             <h1 className="text-2xl font-bold text-gray-900">ProofPay</h1>
-            <ConnectButton />
+            <div className="flex items-center space-x-4">
+              <WalletSwitcher />
+              <ConnectButton />
+            </div>
           </div>
         </div>
       </nav>
@@ -110,10 +116,11 @@ export default function Home() {
                 <button
                   onClick={() => {
                     setShowHistory(false);
+                    setShowWalletManagement(false);
                     setActiveTab('income');
                   }}
                   className={`${
-                    !showHistory && activeTab === 'income'
+                    !showHistory && !showWalletManagement && activeTab === 'income'
                       ? 'border-indigo-500 text-indigo-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
@@ -123,10 +130,11 @@ export default function Home() {
                 <button
                   onClick={() => {
                     setShowHistory(false);
+                    setShowWalletManagement(false);
                     setActiveTab('expense');
                   }}
                   className={`${
-                    !showHistory && activeTab === 'expense'
+                    !showHistory && !showWalletManagement && activeTab === 'expense'
                       ? 'border-indigo-500 text-indigo-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
@@ -134,7 +142,10 @@ export default function Home() {
                   支出账单
                 </button>
                 <button
-                  onClick={() => setShowHistory(true)}
+                  onClick={() => {
+                    setShowHistory(true);
+                    setShowWalletManagement(false);
+                  }}
                   className={`${
                     showHistory
                       ? 'border-indigo-500 text-indigo-600'
@@ -143,6 +154,28 @@ export default function Home() {
                 >
                   历史记录
                 </button>
+                <button
+                  onClick={() => {
+                    setShowHistory(false);
+                    setShowWalletManagement(false);
+                  }}
+                  className="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
+                >
+                  发起收款请求
+                </button>
+                <button
+                  onClick={() => {
+                    setShowHistory(false);
+                    setShowWalletManagement(true);
+                  }}
+                  className={`${
+                    showWalletManagement
+                      ? 'border-indigo-500 text-indigo-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+                >
+                  子钱包管理
+                </button>
               </nav>
             </div>
 
@@ -150,6 +183,8 @@ export default function Home() {
             <div className="mt-6">
               {showHistory ? (
                 <InvoiceHistory />
+              ) : showWalletManagement ? (
+                <WalletManagement />
               ) : loading ? (
                 <div className="text-center py-12">
                   <p className="text-gray-600">加载中...</p>
