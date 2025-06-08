@@ -18,7 +18,7 @@ export default function Home() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [formType, setFormType] = useState<'invoice' | 'receipt'>('invoice');
+  const [formType, setFormType] = useState<'income' | 'expense'>('income');
   const [loading, setLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showWalletManagement, setShowWalletManagement] = useState(false);
@@ -78,7 +78,7 @@ export default function Home() {
     setSelectedTransaction(transaction);
     // Set form type based on transaction direction
     const isIncoming = transaction.to.toLowerCase() === address?.toLowerCase();
-    setFormType(isIncoming ? 'invoice' : 'receipt');
+    setFormType(isIncoming ? 'income' : 'expense');
     setIsFormOpen(true);
   };
 
@@ -215,9 +215,7 @@ export default function Home() {
         <div className="fixed inset-0 flex items-center justify-center p-4">
           <Dialog.Panel className="mx-auto max-w-xl rounded bg-white p-6">
             <Dialog.Title className="text-lg font-medium leading-6 text-gray-900 mb-4">
-              {formType === 'invoice' 
-                ? '生成发票' 
-                : (activeTab === 'expense' ? '生成支出凭证' : '生成收据')}
+              生成{formType === 'income' ? '收入' : '支出'}凭证
             </Dialog.Title>
             {selectedTransaction && (
               <InvoiceForm

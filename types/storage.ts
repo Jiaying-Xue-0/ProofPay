@@ -4,7 +4,7 @@ export interface InvoiceRecord {
   id: string;
   documentId: string;
   transactionHash: string;
-  type: 'invoice' | 'receipt';
+  type: 'income' | 'expense';
   customerName: string;
   customerAddress?: string;
   description: string;

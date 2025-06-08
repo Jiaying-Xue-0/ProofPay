@@ -3,7 +3,7 @@ import { InvoiceRecord } from '../types/storage';
 interface FilterParams {
   startDate?: number;
   endDate?: number;
-  type?: 'invoice' | 'receipt';
+  type?: 'income' | 'expense';
   tokenSymbol?: string;
 }
 

@@ -26,7 +26,7 @@ const formatUSDTAmount = (amount: string): string => {
 
 interface InvoiceFormProps {
   transaction: Transaction;
-  type: 'invoice' | 'receipt';
+  type: 'income' | 'expense';
   onClose: () => void;
 }
 
@@ -59,7 +59,7 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
       let signedMessage: string | undefined;
 
       // 如果是收入发票或支出收据，需要签名
-      if ((isIncome && type === 'invoice') || (!isIncome && type === 'receipt')) {
+      if ((isIncome && type === 'income') || (!isIncome && type === 'expense')) {
         if (!address) {
           throw new Error('请先连接钱包');
         }
@@ -112,7 +112,7 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
         to: transaction.to,
         additionalNotes: formData.additionalNotes,
         tags: formData.tags,
-        signatureStatus: (isIncome && type === 'invoice') || (!isIncome && type === 'receipt')
+        signatureStatus: (isIncome && type === 'income') || (!isIncome && type === 'expense')
           ? (signature ? 'signed' : 'pending')
           : 'unverifiable',
         signedBy: signature ? address : undefined,
@@ -140,7 +140,7 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
         transactionStatus: txDetails.status,
         issuer: 'ProofPay',
         chainId: Number(transaction.chain),
-        signatureStatus: (isIncome && type === 'invoice') || (!isIncome && type === 'receipt')
+        signatureStatus: (isIncome && type === 'income') || (!isIncome && type === 'expense')
           ? (signature ? 'signed' : 'pending')
           : 'unverifiable',
         signedBy: signature ? address : undefined,
@@ -288,7 +288,7 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
         />
       </div>
 
-      {((isIncome && type === 'invoice') || (!isIncome && type === 'receipt')) && (
+      {((isIncome && type === 'income') || (!isIncome && type === 'expense')) && (
         <div className="rounded-md bg-yellow-50 p-4">
           <div className="flex">
             <div className="flex-shrink-0">
@@ -300,8 +300,8 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
               <h3 className="text-sm font-medium text-yellow-800">需要签名确认</h3>
               <div className="mt-2 text-sm text-yellow-700">
                 <p>{isIncome 
-                  ? '生成收入发票需要您使用钱包签名，以证明您是此笔收入的接收方。'
-                  : '生成支出收据需要您使用钱包签名，以证明您是此笔支出的支付方。'}</p>
+                  ? '生成收入凭证需要您使用钱包签名，以证明您是此笔收入的接收方。'
+                  : '生成支出凭证需要您使用钱包签名，以证明您是此笔支出的支付方。'}</p>
               </div>
             </div>
           </div>
@@ -343,9 +343,7 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
           disabled={isLoading}
           className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
         >
-          {isLoading ? '处理中...' : `生成${type === 'invoice' 
-            ? '发票' 
-            : (!isIncome ? '支出凭证' : '收据')}`}
+          {isLoading ? '处理中...' : `生成${type === 'income' ? '收入' : '支出'}凭证`}
         </button>
       </div>
     </form>

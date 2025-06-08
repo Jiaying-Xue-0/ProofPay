@@ -75,7 +75,7 @@ export default function VerifyPage({
         {/* Document Title */}
         <div className="bg-indigo-600 px-6 py-4">
           <h1 className="text-2xl font-bold text-white text-center">
-            {document.type === 'invoice' ? 'INVOICE' : 'RECEIPT'} VERIFICATION
+            {document.type === 'income' ? 'INVOICE' : 'EXPENSE RECEIPT'} VERIFICATION
           </h1>
         </div>
 

@@ -4,7 +4,7 @@ import { SignatureStatus } from '../types/storage';
 import { shortenAddress } from './address';
 
 interface PDFData {
-  type: 'invoice' | 'receipt';
+  type: 'income' | 'expense';
   documentId: string;
   date: string;
   customerName: string;
@@ -58,7 +58,7 @@ export async function generatePDF(data: PDFData): Promise<jsPDF> {
   // Document Title
   doc.setFontSize(24);
   doc.setFont('helvetica', 'bold');
-  doc.text(data.type.toUpperCase(), pageWidth / 2, y, { align: 'center' });
+  doc.text(data.type === 'income' ? 'INVOICE' : 'EXPENSE RECEIPT', pageWidth / 2, y, { align: 'center' });
   y += 20;
 
   // Reset font for content

@@ -12,7 +12,7 @@ const formatUSDTAmount = (amount: string): string => {
 
 // 创建简单的 PDF 布局
 const createSimplePDF = (data: {
-  type: 'invoice' | 'receipt';
+  type: 'income' | 'expense';
   date: string;
   transactionHash: string;
   customerName: string;
@@ -31,7 +31,7 @@ const createSimplePDF = (data: {
   
   // 标题
   doc.setFontSize(24);
-  doc.text(data.type === 'invoice' ? 'INVOICE' : 'RECEIPT', 105, y, { align: 'center' });
+  doc.text(data.type === 'income' ? 'INVOICE' : 'EXPENSE RECEIPT', 105, y, { align: 'center' });
   y += lineHeight * 2;
 
   // 基本信息
