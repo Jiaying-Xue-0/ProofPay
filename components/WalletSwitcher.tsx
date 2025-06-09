@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useWalletStore } from '../store/walletStore';
 import { useAccount, useConnect, useDisconnect } from 'wagmi';
 import { shortenAddress } from '../utils/address';
@@ -12,6 +12,7 @@ export function WalletSwitcher() {
   const [isOpen, setIsOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const {
     mainWallet,
@@ -27,6 +28,20 @@ export function WalletSwitcher() {
     setSwitchingWallet,
   } = useWalletStore();
 
+  // 处理点击外部关闭下拉框
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   // 如果未连接钱包，不显示组件
   if (!isConnected) {
     return null;
@@ -38,17 +53,9 @@ export function WalletSwitcher() {
       setCurrentConnectedWallet(null);
       // 不再自动清除所有钱包数据
     } else if (address && !isDisconnecting) {
-      // 检查是否是子钱包
-      const isConnectedWalletSubWallet = isSubWallet(address);
-      
-      // 如果不是子钱包，并且没有主钱包，则设置为主钱包
-      if (!isConnectedWalletSubWallet && !mainWallet) {
-        setMainWallet(address);
-      }
-      
       setCurrentConnectedWallet(address);
     }
-  }, [isConnected, address, mainWallet, isDisconnecting, setMainWallet, setCurrentConnectedWallet, isSubWallet]);
+  }, [isConnected, address, isDisconnecting, setCurrentConnectedWallet]);
 
   const handleWalletSwitch = async (newAddress: string) => {
     if (isSwitchingWallet) {
@@ -101,7 +108,7 @@ export function WalletSwitcher() {
   };
 
   return (
-    <div className="relative">
+    <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center space-x-2 px-4 py-2 rounded-full bg-white border border-gray-200 hover:bg-gray-50 shadow-sm"
@@ -128,7 +135,10 @@ export function WalletSwitcher() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-lg border border-gray-100 z-50 overflow-hidden">
+        <div 
+          className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-lg border border-gray-100"
+          style={{ zIndex: 100 }}
+        >
           <div className="p-2">
             <div className="px-3 py-2 text-sm font-medium text-gray-900">钱包管理</div>
             
@@ -150,14 +160,14 @@ export function WalletSwitcher() {
                 </div>
                 <div className="flex items-center">
                   {mainWallet?.toLowerCase() === currentConnectedWallet?.toLowerCase() ? (
-                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                       当前连接
                     </span>
                   ) : (
                     <button
                       onClick={() => handleWalletSwitch(mainWallet!)}
                       disabled={isSwitchingWallet}
-                      className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isSwitchingWallet ? (
                         <div className="flex items-center">
@@ -200,33 +210,25 @@ export function WalletSwitcher() {
                       </div>
                       <div className="flex items-center space-x-2">
                         {wallet.address.toLowerCase() === currentConnectedWallet?.toLowerCase() ? (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                             当前连接
                           </span>
                         ) : (
-                          <div className="flex items-center space-x-1">
-                            <button
-                              onClick={() => handleWalletSwitch(wallet.address)}
-                              disabled={isSwitchingWallet}
-                              className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              {isSwitchingWallet ? (
-                                <div className="flex items-center">
-                                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                  </svg>
-                                  切换中
-                                </div>
-                              ) : '切换'}
-                            </button>
-                            <button
-                              onClick={() => removeWallet(wallet.address)}
-                              className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium text-red-700 bg-red-100 hover:bg-red-200"
-                            >
-                              删除
-                            </button>
-                          </div>
+                          <button
+                            onClick={() => handleWalletSwitch(wallet.address)}
+                            disabled={isSwitchingWallet}
+                            className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isSwitchingWallet ? (
+                              <div className="flex items-center">
+                                <svg className="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                切换中
+                              </div>
+                            ) : '切换'}
+                          </button>
                         )}
                       </div>
                     </div>

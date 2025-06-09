@@ -13,6 +13,7 @@ import { WalletSwitcher } from '../components/WalletSwitcher';
 import { WalletManagement } from '../components/WalletManagement';
 import { useWalletStore } from '../store/walletStore';
 import { WalletSwitchingOverlay } from '../components/WalletSwitchingOverlay';
+import { db } from '../services/db';
 
 export default function Home() {
   const { address, isConnected, chain } = useAccount();
@@ -26,7 +27,38 @@ export default function Home() {
   const [showWalletManagement, setShowWalletManagement] = useState(false);
 
   // Get wallet switching state from store
-  const { isSwitchingWallet, switchingToAddress } = useWalletStore();
+  const { isSwitchingWallet, switchingToAddress, mainWallet, setMainWallet } = useWalletStore();
+
+  // 监听钱包连接状态，处理钱包数据
+  useEffect(() => {
+    async function handleWalletConnection() {
+      if (isConnected && address) {
+        try {
+          const normalizedAddress = address.toLowerCase();
+          
+          // 检查是否是切换钱包的操作
+          const { isSwitchingWallet } = useWalletStore.getState();
+          if (isSwitchingWallet) {
+            // 如果是切换钱包操作，只更新当前连接的钱包
+            useWalletStore.getState().setCurrentConnectedWallet(normalizedAddress);
+            return;
+          }
+
+          // 如果不是切换操作，则是新连接
+          // 使用新的初始化方法
+          await useWalletStore.getState().initializeWallet(normalizedAddress);
+
+        } catch (error) {
+          console.error('Error handling wallet connection:', error);
+        }
+      } else if (!isConnected) {
+        // 断开连接时清除当前连接的钱包
+        useWalletStore.getState().setCurrentConnectedWallet(null);
+      }
+    }
+
+    handleWalletConnection();
+  }, [isConnected, address]);
 
   const fetchTransactions = useCallback(async () => {
     if (!address || !chain) return;
@@ -94,12 +126,23 @@ export default function Home() {
         <WalletSwitchingOverlay targetAddress={switchingToAddress} />
       )}
 
-      <main className="min-h-screen bg-gray-50">
+      <main className="relative bg-gray-50" style={{ zIndex: 30 }}>
         {/* Header */}
-        <nav className="bg-white shadow-sm">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <nav className="relative bg-white/80 backdrop-blur-lg shadow-sm border-b border-gray-100" style={{ zIndex: 40 }}>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
             <div className="flex justify-between items-center">
-              <h1 className="text-2xl font-bold text-gray-900">ProofPay</h1>
+              <div className="flex items-center">
+                <div className="relative group">
+                  <div className="absolute -inset-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 rounded-lg blur opacity-10 group-hover:opacity-20 transition duration-1000 group-hover:duration-200"></div>
+                  <a href="/" className="relative block">
+                    <img
+                      src="/logo-proofpay.png"
+                      alt="ProofPay"
+                      className="h-8 w-auto hover:opacity-90 transition-opacity"
+                    />
+                  </a>
+                </div>
+              </div>
               <div className="flex items-center space-x-4">
                 {isConnected && <WalletSwitcher />}
                 <ConnectButton />

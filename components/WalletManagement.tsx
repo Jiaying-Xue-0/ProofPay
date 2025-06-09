@@ -19,6 +19,7 @@ export function WalletManagement() {
   const [waitForConnection, setWaitForConnection] = useState<(() => Promise<string>) | null>(null);
   const [successWalletAddress, setSuccessWalletAddress] = useState<string>('');
   const [isDisconnecting, setIsDisconnecting] = useState(false);
+  const [removingWallets, setRemovingWallets] = useState<Record<string, boolean>>({});
 
   const {
     mainWallet,
@@ -31,6 +32,7 @@ export function WalletManagement() {
     isSwitchingWallet,
     switchingToAddress,
     setSwitchingWallet,
+    isInitializing,
   } = useWalletStore();
 
   // 生成签名消息
@@ -51,12 +53,11 @@ export function WalletManagement() {
     if (!isSwitchingWallet) {
       if (!isConnected) {
         setCurrentConnectedWallet(null);
-      } else if (address && !mainWallet) {
-        setMainWallet(address);
-        setCurrentConnectedWallet(address);
+      } else if (address) {
+        setCurrentConnectedWallet(address.toLowerCase());
       }
     }
-  }, [isConnected, address, isSwitchingWallet, mainWallet, setMainWallet, setCurrentConnectedWallet]);
+  }, [isConnected, address, isSwitchingWallet, setCurrentConnectedWallet]);
 
 
   // 处理钱包切换
@@ -151,11 +152,11 @@ export function WalletManagement() {
       }
 
       // 生成签名消息
-      const message = generateMessage(address, newWalletAddress);
+      const message = generateMessage(address.toLowerCase(), newWalletAddress.toLowerCase());
       setSignatureMessage(message);
 
       // 创建 WalletConnect 会话
-      const session = await createWalletConnectSession(message, newWalletAddress);
+      const session = await createWalletConnectSession(message, newWalletAddress.toLowerCase());
       setQrCodeUrl(session.uri);
       setWaitForConnection(() => session.waitForConnection);
 
@@ -227,7 +228,6 @@ export function WalletManagement() {
       addWallet({
         address: newWalletAddress,
         label: newWalletLabel,
-        verified: true,
         parentWallet: address!,
       });
 
@@ -264,6 +264,20 @@ export function WalletManagement() {
     setIsLoading
   ]);
 
+  // 处理移除钱包
+  const handleRemoveWallet = async (walletAddress: string) => {
+    try {
+      setRemovingWallets(prev => ({ ...prev, [walletAddress]: true }));
+      await removeWallet(walletAddress);
+    } catch (error) {
+      console.error('Failed to remove wallet:', error);
+      setError('移除钱包失败，请重试');
+      setTimeout(() => setError(null), 3000);
+    } finally {
+      setRemovingWallets(prev => ({ ...prev, [walletAddress]: false }));
+    }
+  };
+
   // 渲染切换按钮
   const renderSwitchButton = useCallback((targetAddress: string) => {
     return (
@@ -290,6 +304,24 @@ export function WalletManagement() {
   // 如果没有连接钱包，不显示任何内容
   if (!isConnected || !address) {
     return null;
+  }
+
+  // 如果正在初始化钱包数据，显示加载状态
+  if (isInitializing) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="bg-white shadow sm:rounded-lg overflow-hidden border border-gray-100">
+          <div className="p-4 sm:p-6">
+            <div className="flex items-center justify-center py-12">
+              <div className="flex items-center space-x-3">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                <span className="text-sm text-gray-600">正在加载钱包数据...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -395,10 +427,19 @@ export function WalletManagement() {
                           renderSwitchButton(wallet.address)
                         )}
                         <button
-                          onClick={() => removeWallet(wallet.address)}
-                          className="inline-flex items-center px-3 py-1.5 border border-red-200 text-xs font-medium rounded-lg text-red-600 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200"
+                          onClick={() => handleRemoveWallet(wallet.address)}
+                          disabled={removingWallets[wallet.address]}
+                          className="inline-flex items-center px-3 py-1.5 border border-red-200 text-xs font-medium rounded-lg text-red-600 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          移除
+                          {removingWallets[wallet.address] ? (
+                            <>
+                              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                              移除中
+                            </>
+                          ) : '移除'}
                         </button>
                       </div>
                     </div>

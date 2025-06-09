@@ -98,7 +98,7 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
       }
 
       // 保存到本地存储
-      const savedDocument = storage.saveInvoice({
+      const savedDocument = await storage.saveInvoice({
         documentId,
         transactionHash: transaction.hash,
         type,

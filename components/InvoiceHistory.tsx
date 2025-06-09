@@ -1,5 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
-import { storage } from '../services/storage';
+import { useState } from 'react';
 import { format } from 'date-fns';
 import { generatePDF } from '../utils/pdfGenerator';
 import { blockchain } from '../services/blockchain';
@@ -7,27 +6,8 @@ import { Dialog } from '@headlessui/react';
 import { ethers } from 'ethers';
 import { useAccount } from 'wagmi';
 import { useWalletStore } from '../store/walletStore';
-
-interface Invoice {
-  id: string;
-  documentId: string;
-  type: 'income' | 'expense';
-  customerName: string;
-  customerAddress?: string;
-  amount: string;
-  tokenSymbol: string;
-  description: string;
-  date: number;
-  tags?: string[];
-  transactionHash: string;
-  from: string;
-  to: string;
-  additionalNotes?: string;
-  blockNumber?: number;
-  signatureStatus: 'pending' | 'signed' | 'mismatch' | 'unverifiable';
-  signedBy?: string;
-  decimals: number;
-}
+import { InvoiceRecord, SignatureStatus } from '../types/storage';
+import { useInvoices } from '../hooks/useInvoices';
 
 interface FilterState {
   type: '' | 'income' | 'expense';
@@ -50,49 +30,23 @@ const formatAmount = (amount: string, decimals: number): string => {
 };
 
 export function InvoiceHistory() {
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [filter, setFilter] = useState<FilterState>({
     type: '',
     tokenSymbol: '',
     startDate: '',
     endDate: '',
   });
-  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [selectedInvoice, setSelectedInvoice] = useState<InvoiceRecord | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [loadingStates, setLoadingStates] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
   const { currentConnectedWallet } = useWalletStore();
   const { address } = useAccount();
 
-  const loadInvoices = useCallback(() => {
-    // 使用当前连接的钱包地址或主钱包地址
-    const walletAddress = currentConnectedWallet || address;
-    if (!walletAddress) return;
+  // 使用 SWR hook 获取发票数据
+  const { invoices, error: fetchError, isLoading } = useInvoices(filter);
 
-    // 先根据钱包地址过滤
-    const walletInvoices = storage.getInvoicesByAddress(walletAddress);
-
-    // 再应用其他过滤条件
-    const records = storage.filterInvoices({
-      type: filter.type || undefined,
-      tokenSymbol: filter.tokenSymbol || undefined,
-      startDate: filter.startDate ? new Date(filter.startDate).getTime() : undefined,
-      endDate: filter.endDate ? new Date(filter.endDate).getTime() : undefined,
-    });
-
-    // 取两个结果的交集
-    const filteredInvoices = records.filter(record => 
-      walletInvoices.some(invoice => invoice.id === record.id)
-    );
-
-    setInvoices(filteredInvoices);
-  }, [filter, currentConnectedWallet, address]);
-
-  useEffect(() => {
-    loadInvoices();
-  }, [loadInvoices]);
-
-  const handleDownload = async (invoice: Invoice) => {
+  const handleDownload = async (invoice: InvoiceRecord) => {
     try {
       setLoadingStates(prev => ({ ...prev, [invoice.id]: true }));
       setError(null);
@@ -121,7 +75,7 @@ export function InvoiceHistory() {
         transactionStatus: txDetails.status,
         issuer: 'ProofPay',
         chainId: Number(txDetails.chainId),
-        signatureStatus: invoice.signatureStatus,
+        signatureStatus: invoice.signatureStatus || 'pending',
         signedBy: invoice.signedBy,
       });
 
@@ -135,7 +89,7 @@ export function InvoiceHistory() {
     }
   };
 
-  const handlePreview = (invoice: Invoice) => {
+  const handlePreview = (invoice: InvoiceRecord) => {
     setSelectedInvoice(invoice);
     setIsPreviewOpen(true);
   };
@@ -250,7 +204,7 @@ export function InvoiceHistory() {
         </div>
       </div>
 
-      {error && (
+      {(error || fetchError) && (
         <div className="mb-4 rounded-md bg-red-50 p-4">
           <div className="flex">
             <div className="flex-shrink-0">
@@ -259,105 +213,112 @@ export function InvoiceHistory() {
               </svg>
             </div>
             <div className="ml-3">
-              <p className="text-sm font-medium text-red-800">{error}</p>
+              <p className="text-sm font-medium text-red-800">{error || fetchError}</p>
             </div>
           </div>
         </div>
       )}
 
-      <div className="space-y-4">
-        {invoices.map((invoice) => (
-          <div
-            key={invoice.id}
-            className="group relative bg-white/80 backdrop-blur-lg rounded-xl p-5 shadow-sm border border-gray-100 hover:border-indigo-100 hover:shadow-md transition-all duration-300 overflow-hidden"
-          >
-            {/* 背景装饰 */}
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-indigo-50/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-            
-            <div className="relative flex items-center justify-between">
-              <div className="flex-1">
-                <div className="flex items-center space-x-3">
-                  <div className={`flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-medium ${
-                    invoice.type === 'income' 
-                      ? 'bg-gradient-to-r from-green-100 to-emerald-100 text-emerald-700'
-                      : 'bg-gradient-to-r from-blue-100 to-indigo-100 text-indigo-700'
-                  }`}>
-                    <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
-                      {invoice.type === 'income' ? (
-                        <path fillRule="evenodd" d="M16.707 10.293a1 1 0 010 1.414l-6 6a1 1 0 01-1.414 0l-6-6a1 1 0 111.414-1.414L9 14.586V3a1 1 0 012 0v11.586l4.293-4.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      ) : (
-                        <path fillRule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                      )}
-                    </svg>
-                    <span>{invoice.type === 'income' ? '收入' : '支出'}</span>
-                  </div>
-                  <h3 className="text-sm font-medium text-gray-900">{invoice.customerName}</h3>
-                  <span className="text-sm text-gray-500">
-                    {format(invoice.date, 'yyyy-MM-dd HH:mm')}
-                  </span>
-                </div>
-                <div className="mt-2">
-                  <p className="text-sm text-gray-600 line-clamp-1">{invoice.description}</p>
-                  <div className="mt-1.5 flex items-center space-x-2">
-                    <span className="text-sm font-semibold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                      {formatAmount(invoice.amount, invoice.decimals)} {invoice.tokenSymbol}
+      {isLoading ? (
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+          <span className="ml-3 text-sm text-gray-600">加载中...</span>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {invoices.map((invoice) => (
+            <div
+              key={invoice.id}
+              className="group relative bg-white/80 backdrop-blur-lg rounded-xl p-5 shadow-sm border border-gray-100 hover:border-indigo-100 hover:shadow-md transition-all duration-300 overflow-hidden"
+            >
+              {/* 背景装饰 */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-indigo-50/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              
+              <div className="relative flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center space-x-3">
+                    <div className={`flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-medium ${
+                      invoice.type === 'income' 
+                        ? 'bg-gradient-to-r from-green-100 to-emerald-100 text-emerald-700'
+                        : 'bg-gradient-to-r from-blue-100 to-indigo-100 text-indigo-700'
+                    }`}>
+                      <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
+                        {invoice.type === 'income' ? (
+                          <path fillRule="evenodd" d="M16.707 10.293a1 1 0 010 1.414l-6 6a1 1 0 01-1.414 0l-6-6a1 1 0 111.414-1.414L9 14.586V3a1 1 0 012 0v11.586l4.293-4.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        ) : (
+                          <path fillRule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                        )}
+                      </svg>
+                      <span>{invoice.type === 'income' ? '收入' : '支出'}</span>
+                    </div>
+                    <h3 className="text-sm font-medium text-gray-900">{invoice.customerName}</h3>
+                    <span className="text-sm text-gray-500">
+                      {format(invoice.date, 'yyyy-MM-dd HH:mm')}
                     </span>
-                    {invoice.tags && invoice.tags.length > 0 && (
+                  </div>
+                  <div className="mt-2">
+                    <p className="text-sm text-gray-600 line-clamp-1">{invoice.description}</p>
+                    <div className="mt-1.5 flex items-center space-x-2">
+                      <span className="text-sm font-semibold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                        {formatAmount(invoice.amount, invoice.decimals)} {invoice.tokenSymbol}
+                      </span>
+                      {invoice.tags && invoice.tags.length > 0 && (
+                        <>
+                          <span className="text-gray-300">•</span>
+                          <div className="flex items-center space-x-1.5">
+                            {invoice.tags.map((tag) => (
+                              <span
+                                key={tag}
+                                className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-50 text-gray-600 border border-gray-100"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => handlePreview(invoice)}
+                    className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200"
+                  >
+                    <svg className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                      <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                    </svg>
+                    查看
+                  </button>
+                  <button
+                    onClick={() => handleDownload(invoice)}
+                    disabled={loadingStates[invoice.id]}
+                    className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow"
+                  >
+                    {loadingStates[invoice.id] ? (
                       <>
-                        <span className="text-gray-300">•</span>
-                        <div className="flex items-center space-x-1.5">
-                          {invoice.tags.map((tag) => (
-                            <span
-                              key={tag}
-                              className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-50 text-gray-600 border border-gray-100"
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
+                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        下载中
+                      </>
+                    ) : (
+                      <>
+                        <svg className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                        下载
                       </>
                     )}
-                  </div>
+                  </button>
                 </div>
               </div>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => handlePreview(invoice)}
-                  className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200"
-                >
-                  <svg className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                    <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
-                  </svg>
-                  查看
-                </button>
-                <button
-                  onClick={() => handleDownload(invoice)}
-                  disabled={loadingStates[invoice.id]}
-                  className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow"
-                >
-                  {loadingStates[invoice.id] ? (
-                    <>
-                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      下载中
-                    </>
-                  ) : (
-                    <>
-                      <svg className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                      </svg>
-                      下载
-                    </>
-                  )}
-                </button>
-              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       <Dialog
         open={isPreviewOpen}

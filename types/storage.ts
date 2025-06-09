@@ -3,24 +3,21 @@ export type SignatureStatus = 'pending' | 'signed' | 'mismatch' | 'unverifiable'
 export interface InvoiceRecord {
   id: string;
   documentId: string;
-  transactionHash: string;
   type: 'income' | 'expense';
+  date: number;
   customerName: string;
-  customerAddress?: string;
-  description: string;
+  customerAddress: string;
+  from: string;
+  to: string;
   amount: string;
   tokenSymbol: string;
   decimals: number;
-  date: number;
-  from: string;
-  to: string;
+  description: string;
+  tags?: string[];
   additionalNotes?: string;
-  tags: string[];
-  signatureStatus: SignatureStatus;
+  transactionHash: string;
+  signatureStatus?: SignatureStatus;
   signedBy?: string;
-  signedAt?: Date;
-  signature?: string;
-  signedMessage?: string;
-  createdAt: number;
-  blockNumber?: number;
+  walletAddress: string;
+  createdAt: string;
 } 
