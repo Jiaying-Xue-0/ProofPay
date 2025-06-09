@@ -1,5 +1,6 @@
+import { useEffect } from 'react';
 import useSWR from 'swr';
-import { storage } from '../services/storage';
+import { db } from '../services/db';
 import { useWalletStore } from '../store/walletStore';
 import { InvoiceRecord } from '../types/storage';
 
@@ -10,69 +11,109 @@ interface FilterState {
   endDate: string;
 }
 
-// 创建一个唯一的缓存键
-const createCacheKey = (address: string | null, filter: FilterState) => {
-  if (!address) return null;
-  return ['invoices', address, filter.type, filter.tokenSymbol, filter.startDate, filter.endDate].join('-');
-};
-
-// 过滤发票数据
-const filterInvoices = (invoices: InvoiceRecord[], filter: FilterState, mainWallet: string | null) => {
-  return invoices.filter(invoice => {
-    // 类型筛选（收入/支出）
-    const matchesType = !filter.type || (
-      filter.type === 'income' 
-        ? invoice.to.toLowerCase() === mainWallet?.toLowerCase() // 收入：当前钱包是接收方
-        : invoice.from.toLowerCase() === mainWallet?.toLowerCase() // 支出：当前钱包是发送方
-    );
-
-    // 代币符号筛选
-    const matchesToken = !filter.tokenSymbol || 
-      invoice.tokenSymbol.toLowerCase().includes(filter.tokenSymbol.toLowerCase());
-    
-    // 日期筛选
-    let matchesStartDate = true;
-    let matchesEndDate = true;
-
-    if (filter.startDate) {
-      const startDate = new Date(filter.startDate);
-      startDate.setHours(0, 0, 0, 0);
-      matchesStartDate = invoice.date >= startDate.getTime();
-    }
-
-    if (filter.endDate) {
-      const endDate = new Date(filter.endDate);
-      endDate.setHours(23, 59, 59, 999);
-      matchesEndDate = invoice.date <= endDate.getTime();
-    }
-
-    return matchesType && matchesToken && matchesStartDate && matchesEndDate;
-  });
-};
-
 export function useInvoices(filter: FilterState) {
-  const { mainWallet } = useWalletStore();
-  
-  // 使用 SWR 获取数据
-  const { data: invoices, error, isLoading, mutate } = useSWR(
-    createCacheKey(mainWallet, filter),
-    async () => {
-      if (!mainWallet) return [];
-      const allInvoices = await storage.getInvoicesByAddress(mainWallet);
-      return filterInvoices(allInvoices, filter, mainWallet);
-    },
+  const { mainWallet, currentConnectedWallet, availableWallets } = useWalletStore();
+
+  // 获取要查询的钱包地址列表
+  const getWalletAddresses = () => {
+    if (!currentConnectedWallet) return [];
+    
+    // 如果当前连接的是主钱包，返回主钱包和所有子钱包的地址
+    if (currentConnectedWallet.toLowerCase() === mainWallet?.toLowerCase()) {
+      return [
+        mainWallet.toLowerCase(),
+        ...availableWallets.map(w => w.address.toLowerCase())
+      ];
+    }
+    
+    // 如果是子钱包，只返回当前连接的子钱包地址
+    return [currentConnectedWallet.toLowerCase()];
+  };
+
+  // 构建缓存键
+  const getCacheKey = () => {
+    const addresses = getWalletAddresses();
+    if (addresses.length === 0) return null;
+
+    return [
+      'invoices',
+      addresses.join(','),
+      filter.type,
+      filter.tokenSymbol,
+      filter.startDate,
+      filter.endDate
+    ];
+  };
+
+  // 获取发票数据
+  const fetchInvoices = async () => {
+    const addresses = getWalletAddresses();
+    if (addresses.length === 0) return [];
+
+    let invoices: InvoiceRecord[] = [];
+    
+    // 获取所有相关钱包的发票
+    for (const address of addresses) {
+      const walletInvoices = await db.getInvoicesByAddress(address);
+      
+      // 如果是子钱包，只获取与该钱包相关的发票
+      if (currentConnectedWallet?.toLowerCase() !== mainWallet?.toLowerCase()) {
+        const filteredInvoices = walletInvoices.filter(invoice => {
+          const invoiceAddress = invoice.from.toLowerCase() === address.toLowerCase() ? 
+            invoice.from.toLowerCase() : 
+            invoice.to.toLowerCase();
+          return invoiceAddress === currentConnectedWallet?.toLowerCase();
+        });
+        invoices.push(...filteredInvoices);
+      } else {
+        // 如果是主钱包，获取所有发票
+        invoices.push(...walletInvoices);
+      }
+    }
+
+    // 按照筛选条件过滤
+    return invoices.filter(invoice => {
+      let matches = true;
+
+      if (filter.type && invoice.type !== filter.type) {
+        matches = false;
+      }
+
+      if (filter.tokenSymbol && !invoice.tokenSymbol.toLowerCase().includes(filter.tokenSymbol.toLowerCase())) {
+        matches = false;
+      }
+
+      if (filter.startDate) {
+        const startDate = new Date(filter.startDate).getTime();
+        if (invoice.date < startDate) {
+          matches = false;
+        }
+      }
+
+      if (filter.endDate) {
+        const endDate = new Date(filter.endDate).getTime() + 24 * 60 * 60 * 1000; // 包含结束日期当天
+        if (invoice.date > endDate) {
+          matches = false;
+        }
+      }
+
+      return matches;
+    }).sort((a, b) => b.date - a.date); // 按日期降序排序
+  };
+
+  const { data: invoices = [], error, isLoading } = useSWR(
+    getCacheKey(),
+    fetchInvoices,
     {
-      revalidateOnFocus: true, // 页面重新获得焦点时重新验证
+      refreshInterval: 30000, // 每30秒自动刷新
+      revalidateOnFocus: true, // 窗口获得焦点时重新验证
       revalidateOnReconnect: true, // 重新连接时重新验证
-      refreshInterval: 30000, // 每30秒自动刷新一次
-      dedupingInterval: 5000, // 5秒内重复请求会被去重
     }
   );
 
   return {
-    invoices: invoices || [],
+    invoices,
     error,
     isLoading,
-    mutate, // 用于手动触发重新验证
   };
 } 

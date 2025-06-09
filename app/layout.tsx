@@ -17,6 +17,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <link rel="icon" href="/logo-proofpay-icon.png" />
+      </head>
       <body className={inter.className}>
         <Providers>{children}</Providers>
       </body>
