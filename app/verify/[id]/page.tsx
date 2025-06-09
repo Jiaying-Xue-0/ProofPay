@@ -1,11 +1,25 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { storage } from '@/services/storage';
+import { db } from '@/services/db';
 import { blockchain, TransactionDetails } from '@/services/blockchain';
 import { InvoiceRecord } from '@/types/storage';
 import { shortenAddress } from '@/utils/address';
+import { ethers } from 'ethers';
 import Link from 'next/link';
+
+// 格式化金额的辅助函数
+const formatAmount = (amount: string, decimals: number): string => {
+  try {
+    // 移除可能存在的小数部分，确保是整数字符串
+    const [integerPart] = amount.split('.');
+    const cleanAmount = integerPart.replace(/[^\d]/g, '');
+    return ethers.utils.formatUnits(cleanAmount, decimals);
+  } catch (error) {
+    console.error('Error formatting amount:', error);
+    return amount;
+  }
+};
 
 export default function VerifyPage({
   params,
@@ -14,12 +28,13 @@ export default function VerifyPage({
 }) {
   const [document, setDocument] = useState<InvoiceRecord | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [blockchainData, setBlockchainData] = useState<TransactionDetails | null>(null);
 
   useEffect(() => {
     const loadDocument = async () => {
       try {
-        const doc = storage.getInvoiceById(params.id);
+        const doc = await db.getInvoice(params.id);
         if (doc) {
           setDocument(doc);
           // Get blockchain transaction details
@@ -28,6 +43,7 @@ export default function VerifyPage({
         }
       } catch (error) {
         console.error('Error loading document:', error);
+        setError('Failed to load document. Please try again later.');
       } finally {
         setLoading(false);
       }
@@ -40,6 +56,23 @@ export default function VerifyPage({
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Error</h1>
+          <p className="text-gray-600 mb-8">{error}</p>
+          <Link
+            href="/"
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+          >
+            Return Home
+          </Link>
+        </div>
       </div>
     );
   }
@@ -120,7 +153,7 @@ export default function VerifyPage({
               <div>
                 <p className="text-sm font-medium text-gray-500">Amount</p>
                 <p className="mt-1 text-lg font-medium text-gray-900">
-                  {document.amount} {document.tokenSymbol}
+                  {formatAmount(document.amount, document.decimals)} {document.tokenSymbol}
                 </p>
               </div>
               <div>
@@ -179,12 +212,12 @@ export default function VerifyPage({
                       {blockchainData.status.toUpperCase()}
                     </span>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Transaction Time</p>
-                    <p className="mt-1 text-sm text-gray-900">{formatDate(blockchainData.timestamp)}</p>
-                  </div>
                 </>
               )}
+              <div>
+                <p className="text-sm font-medium text-gray-500">Transaction Time</p>
+                <p className="mt-1 text-sm text-gray-900">{formatDate(document.date)}</p>
+              </div>
               <div>
                 <p className="text-sm font-medium text-gray-500">Transaction Hash</p>
                 <p className="mt-1 text-sm text-gray-900 break-all font-mono">{document.transactionHash}</p>
@@ -245,11 +278,6 @@ export default function VerifyPage({
                     {document.signatureStatus === 'mismatch' && 'Signature verification failed'}
                     {document.signatureStatus === 'unverifiable' && 'No signature required'}
                   </p>
-                  {document.signedAt && document.signatureStatus === 'signed' && (
-                    <p className="mt-1 text-xs text-gray-500">
-                      Signed at {formatDate(new Date(document.signedAt).getTime())}
-                    </p>
-                  )}
                 </div>
               </div>
             </div>

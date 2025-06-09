@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import QRCode from 'qrcode';
 import { SignatureStatus } from '../types/storage';
 import { shortenAddress } from './address';
+import { ethers } from 'ethers';
 
 interface PDFData {
   type: 'income' | 'expense';
@@ -13,6 +14,7 @@ interface PDFData {
   to: string;
   amount: string;
   tokenSymbol: string;
+  decimals: number;
   description: string;
   tags: string[];
   additionalNotes?: string;
@@ -24,6 +26,19 @@ interface PDFData {
   signatureStatus: SignatureStatus;
   signedBy?: string;
 }
+
+// 格式化金额的辅助函数
+const formatAmount = (amount: string, decimals: number): string => {
+  try {
+    // 移除可能存在的小数部分，确保是整数字符串
+    const [integerPart] = amount.split('.');
+    const cleanAmount = integerPart.replace(/[^\d]/g, '');
+    return ethers.utils.formatUnits(cleanAmount, decimals);
+  } catch (error) {
+    console.error('Error formatting amount:', error);
+    return amount;
+  }
+};
 
 export async function generatePDF(data: PDFData): Promise<jsPDF> {
   const doc = new jsPDF();
@@ -81,7 +96,7 @@ export async function generatePDF(data: PDFData): Promise<jsPDF> {
 
   // Transaction Details
   addTitle('Transaction Details');
-  addField('Amount:', `${data.amount} ${data.tokenSymbol}`);
+  addField('Amount:', `${formatAmount(data.amount, data.decimals)} ${data.tokenSymbol}`);
   addField('Description:', data.description);
   if (data.tags.length > 0) {
     addField('Tags:', data.tags.join(', '));

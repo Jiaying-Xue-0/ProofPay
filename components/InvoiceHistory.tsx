@@ -67,6 +67,7 @@ export function InvoiceHistory() {
         to: invoice.to,
         amount: invoice.amount,
         tokenSymbol: invoice.tokenSymbol,
+        decimals: invoice.decimals,
         description: invoice.description,
         tags: invoice.tags || [],
         additionalNotes: invoice.additionalNotes,

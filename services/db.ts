@@ -172,15 +172,19 @@ class DatabaseService {
       console.log('Getting invoice:', id);
       const { data, error } = await supabase
         .from('invoices')
-        .select()
-        .or(`id.eq.${id},document_id.eq.${id}`)
-        .single();
+        .select('*')
+        .eq('document_id', id)
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') throw error;
+      if (error) {
+        console.error('Database error:', error);
+        return null;
+      }
+      
       return data ? this.mapDbInvoiceToInvoiceRecord(data) : null;
     } catch (error) {
       console.error('Error getting invoice:', error);
-      throw error;
+      return null;
     }
   }
 

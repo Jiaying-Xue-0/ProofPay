@@ -50,7 +50,7 @@ export function useInvoices(filter: FilterState) {
     const addresses = getWalletAddresses();
     if (addresses.length === 0) return [];
 
-    let invoices: InvoiceRecord[] = [];
+    const uniqueInvoices = new Map<string, InvoiceRecord>();
     
     // 获取所有相关钱包的发票
     for (const address of addresses) {
@@ -64,15 +64,15 @@ export function useInvoices(filter: FilterState) {
             invoice.to.toLowerCase();
           return invoiceAddress === currentConnectedWallet?.toLowerCase();
         });
-        invoices.push(...filteredInvoices);
+        filteredInvoices.forEach(invoice => uniqueInvoices.set(invoice.id, invoice));
       } else {
         // 如果是主钱包，获取所有发票
-        invoices.push(...walletInvoices);
+        walletInvoices.forEach(invoice => uniqueInvoices.set(invoice.id, invoice));
       }
     }
 
-    // 按照筛选条件过滤
-    return invoices.filter(invoice => {
+    // 转换为数组并按照筛选条件过滤
+    return Array.from(uniqueInvoices.values()).filter(invoice => {
       let matches = true;
 
       if (filter.type && invoice.type !== filter.type) {
