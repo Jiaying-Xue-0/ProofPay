@@ -13,11 +13,45 @@ export interface InvoiceRecord {
   tokenSymbol: string;
   decimals: number;
   description: string;
-  tags?: string[];
-  additionalNotes?: string;
+  tags: string[];
+  additionalNotes: string;
   transactionHash: string;
-  signatureStatus?: SignatureStatus;
+  signatureStatus: SignatureStatus;
   signedBy?: string;
-  walletAddress: string;
-  createdAt: string;
+  createdAt: number;
+  blockchainData?: {
+    blockNumber: number;
+    status: string;
+    chainId: number;
+  };
+  verifierData?: {
+    tokenSymbol: string;
+    amount: string;
+    txHash: string;
+    from: string;
+    to: string;
+    timestamp: number;
+    type: 'income' | 'expense';
+  };
+}
+
+export interface PaymentRequest {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  amount: string;
+  token_symbol: string;
+  token_address: string;
+  chain_id: string;
+  customer_name: string;
+  description?: string;
+  tags?: string[];
+  additional_notes?: string;
+  status: 'pending' | 'paid' | 'cancelled' | 'expired';
+  payment_link: string;
+  requester_address: string;
+  payer_address?: string;
+  transaction_hash?: string;
+  paid_at?: string;
+  expires_at: string;
 } 

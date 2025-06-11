@@ -6,6 +6,7 @@ import { useAccount } from 'wagmi';
 import { TransactionList } from '../components/TransactionList';
 import { InvoiceForm } from '../components/InvoiceForm';
 import { InvoiceHistory } from '../components/InvoiceHistory';
+import { PaymentRequestForm } from '../components/PaymentRequestForm';
 import { Transaction } from '../types/transaction';
 import { blockchain } from '../services/blockchain';
 import { Dialog } from '@headlessui/react';
@@ -199,6 +200,7 @@ export default function Home() {
                     onClick={() => {
                       setShowHistory(true);
                       setShowWalletManagement(false);
+                      setActiveTab('history');
                     }}
                     className={`${
                       showHistory
@@ -212,8 +214,13 @@ export default function Home() {
                     onClick={() => {
                       setShowHistory(false);
                       setShowWalletManagement(false);
+                      setActiveTab('payment_request');
                     }}
-                    className="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm"
+                    className={`${
+                      !showHistory && !showWalletManagement && activeTab === 'payment_request'
+                        ? 'border-indigo-500 text-indigo-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
                   >
                     发起收款请求
                   </button>
@@ -221,6 +228,7 @@ export default function Home() {
                     onClick={() => {
                       setShowHistory(false);
                       setShowWalletManagement(true);
+                      setActiveTab('wallet_management');
                     }}
                     className={`${
                       showWalletManagement
@@ -239,6 +247,8 @@ export default function Home() {
                   <InvoiceHistory />
                 ) : showWalletManagement ? (
                   <WalletManagement />
+                ) : activeTab === 'payment_request' ? (
+                  <PaymentRequestForm />
                 ) : loading ? (
                   <div className="text-center py-12">
                     <p className="text-gray-600">加载中...</p>

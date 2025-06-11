@@ -1,26 +1,94 @@
 import { createClient } from '@supabase/supabase-js';
-import { InvoiceRecord } from '../types/storage';
+import { InvoiceRecord, SignatureStatus } from '../types/storage';
+import { supabase } from './supabase';
+import { PaymentRequest } from '../types/storage';
 
 // 创建 Supabase 客户端
-const supabase = createClient(
+const supabaseClient = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  {
+    auth: {
+      persistSession: true,        // ✅ 保存 session
+      autoRefreshToken: true       // ✅ 自动刷新 token
+    }
+  }
 );
 
 export interface DbWallet {
+  id: string;
   address: string;
   label: string;
   parent_wallet?: string;
   is_main: boolean;
+  created_at: string;
 }
 
-class DatabaseService {
+interface CreatePaymentRequestData {
+  amount: string;
+  token_symbol: string;
+  token_address: string;
+  chain_id: string;
+  customer_name: string;
+  description?: string;
+  tags?: string[];
+  additional_notes?: string;
+  requester_address: string;
+  expires_at: string;
+}
+
+interface DbInvoice {
+  id: string;
+  document_id: string;
+  type: 'income' | 'expense';
+  date: number;
+  customer_name: string;
+  customer_address?: string;
+  from_address: string;
+  to_address: string;
+  amount: string;
+  token_symbol: string;
+  decimals: number;
+  description?: string;
+  tags?: string[];
+  additional_notes?: string;
+  transaction_hash: string;
+  signature_status: SignatureStatus;
+  signed_by?: string;
+  wallet_address: string;
+  created_at: number;
+  block_number?: number;
+  request_id?: string;
+}
+
+export interface DbPaymentRequest {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  amount: string;
+  token_symbol: string;
+  token_address: string;
+  chain_id: string;
+  customer_name: string;
+  description?: string;
+  tags?: string[];
+  additional_notes?: string;
+  status: 'pending' | 'paid' | 'cancelled' | 'expired';
+  payment_link: string;
+  requester_address: string;
+  payer_address?: string;
+  transaction_hash?: string;
+  paid_at?: string;
+  expires_at: string;
+}
+
+export class DatabaseService {
   async saveWallet(wallet: DbWallet): Promise<DbWallet> {
     try {
       console.log('Saving wallet:', { ...wallet, address: wallet.address.slice(0, 10) + '...' });
 
       // 检查钱包是否已存在
-      const { data: existingWallet } = await supabase
+      const { data: existingWallet } = await supabaseClient
         .from('wallets')
         .select()
         .eq('address', wallet.address.toLowerCase())
@@ -28,7 +96,7 @@ class DatabaseService {
 
       if (existingWallet) {
         // 如果钱包已存在，更新它
-        const { data, error } = await supabase
+        const { data, error } = await supabaseClient
           .from('wallets')
           .update({
             label: wallet.label,
@@ -45,7 +113,7 @@ class DatabaseService {
       }
 
       // 如果钱包不存在，创建新钱包
-      const { data, error } = await supabase
+      const { data, error } = await supabaseClient
         .from('wallets')
         .insert({
           address: wallet.address.toLowerCase(),
@@ -69,7 +137,7 @@ class DatabaseService {
   async getMainWallet(address: string): Promise<DbWallet | null> {
     try {
       console.log('Getting main wallet for address:', address);
-      const { data, error } = await supabase
+      const { data, error } = await supabaseClient
         .from('wallets')
         .select()
         .eq('address', address.toLowerCase())
@@ -88,7 +156,7 @@ class DatabaseService {
   async getSubWallets(parentAddress: string): Promise<DbWallet[]> {
     try {
       console.log('Getting sub wallets for parent:', parentAddress);
-      const { data, error } = await supabase
+      const { data, error } = await supabaseClient
         .from('wallets')
         .select()
         .eq('parent_wallet', parentAddress.toLowerCase())
@@ -106,7 +174,7 @@ class DatabaseService {
   async removeWallet(address: string): Promise<void> {
     try {
       console.log('Removing wallet:', address);
-      const { error } = await supabase
+      const { error } = await supabaseClient
         .from('wallets')
         .delete()
         .eq('address', address.toLowerCase());
@@ -123,7 +191,7 @@ class DatabaseService {
       console.log('Saving invoice:', { ...invoice, documentId: invoice.documentId });
 
       // 获取钱包信息以确定正确的 wallet_address
-      const { data: wallet } = await supabase
+      const { data: wallet } = await supabaseClient
         .from('wallets')
         .select()
         .eq('address', invoice.from.toLowerCase())
@@ -132,7 +200,7 @@ class DatabaseService {
       // 如果是子钱包，使用父钱包地址作为 wallet_address
       const walletAddress = wallet?.parent_wallet || invoice.from.toLowerCase();
 
-      const { data, error } = await supabase
+      const { data, error } = await supabaseClient
         .from('invoices')
         .insert({
           document_id: invoice.documentId,
@@ -170,7 +238,7 @@ class DatabaseService {
   async getInvoice(id: string): Promise<InvoiceRecord | null> {
     try {
       console.log('Getting invoice:', id);
-      const { data, error } = await supabase
+      const { data, error } = await supabaseClient
         .from('invoices')
         .select('*')
         .eq('document_id', id)
@@ -194,7 +262,7 @@ class DatabaseService {
       console.log('Getting invoices for address:', normalizedAddress);
 
       // 获取钱包信息
-      const { data: wallet } = await supabase
+      const { data: wallet } = await supabaseClient
         .from('wallets')
         .select()
         .eq('address', normalizedAddress)
@@ -204,7 +272,7 @@ class DatabaseService {
 
       if (wallet?.is_main) {
         // 如果是主钱包，获取所有子钱包
-        const { data: subWallets } = await supabase
+        const { data: subWallets } = await supabaseClient
           .from('wallets')
           .select('address')
           .eq('parent_wallet', normalizedAddress);
@@ -220,7 +288,7 @@ class DatabaseService {
         relatedAddresses = [normalizedAddress, wallet.parent_wallet];
         
         // 获取同一父钱包下的其他子钱包
-        const { data: siblingWallets } = await supabase
+        const { data: siblingWallets } = await supabaseClient
           .from('wallets')
           .select('address')
           .eq('parent_wallet', wallet.parent_wallet);
@@ -238,7 +306,7 @@ class DatabaseService {
       console.log('Related addresses:', relatedAddresses);
 
       // 构建查询
-      const { data, error } = await supabase
+      const { data, error } = await supabaseClient
         .from('invoices')
         .select()
         .or(
@@ -269,7 +337,7 @@ class DatabaseService {
 
   async getSubWallet(address: string) {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await supabaseClient
         .from('wallets')
         .select('*')
         .eq('address', address.toLowerCase())
@@ -284,29 +352,209 @@ class DatabaseService {
     }
   }
 
-  private mapDbInvoiceToInvoiceRecord(dbInvoice: any): InvoiceRecord {
+  async createPaymentRequest(data: CreatePaymentRequestData): Promise<{ data: DbPaymentRequest | null; error: Error | null }> {
+    try {
+      // 先创建请求，获取 ID
+      const { data: result, error } = await supabaseClient
+        .from('payment_requests')
+        .insert({
+          amount: data.amount,
+          token_symbol: data.token_symbol,
+          token_address: data.token_address,
+          chain_id: data.chain_id,
+          customer_name: data.customer_name,
+          description: data.description || '',
+          tags: data.tags || [],
+          additional_notes: data.additional_notes || '',
+          requester_address: data.requester_address.toLowerCase(),
+          status: 'pending',
+          expires_at: data.expires_at,
+          payment_link: '', // 临时空值
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      
+      // 更新支付链接，使用返回的 ID
+      if (result) {
+        const paymentLink = `${window.location.origin}/pay/${result.id}`;
+        const { error: updateError } = await supabaseClient
+          .from('payment_requests')
+          .update({ payment_link: paymentLink })
+          .eq('id', result.id);
+
+        if (updateError) throw updateError;
+
+        // 返回更新后的完整数据
+        return { 
+          data: {
+            ...result,
+            payment_link: paymentLink
+          },
+          error: null 
+        };
+      }
+
+      return { data: null, error: new Error('创建支付请求失败') };
+    } catch (error) {
+      console.error('Error creating payment request:', error);
+      return { data: null, error: error as Error };
+    }
+  }
+
+  async getPaymentRequests(filter: {
+    type?: string;
+    tokenSymbol?: string;
+    startDate?: string;
+    endDate?: string;
+    requesterAddress?: string;
+  }): Promise<{ data: DbPaymentRequest[]; error: Error | null }> {
+    try {
+      if (!filter.requesterAddress) {
+        return { data: [], error: null };
+      }
+
+      const normalizedAddress = filter.requesterAddress.toLowerCase();
+
+      // 获取钱包信息
+      const { data: wallet } = await supabaseClient
+        .from('wallets')
+        .select()
+        .eq('address', normalizedAddress)
+        .maybeSingle();
+
+      let query = supabaseClient
+        .from('payment_requests')
+        .select('*');
+
+      if (wallet?.is_main) {
+        // 如果是主钱包，获取所有子钱包的地址
+        const { data: subWallets } = await supabaseClient
+          .from('wallets')
+          .select('address')
+          .eq('parent_wallet', normalizedAddress);
+
+        const relatedAddresses = [
+          normalizedAddress,
+          ...(subWallets?.map(w => w.address) || [])
+        ];
+
+        // 查询主钱包和所有子钱包的支付请求
+        query = query.in('requester_address', relatedAddresses);
+      } else {
+        // 如果是子钱包或普通钱包，只查询自己的支付请求
+        query = query.eq('requester_address', normalizedAddress);
+      }
+
+      if (filter.tokenSymbol) {
+        query = query.eq('token_symbol', filter.tokenSymbol);
+      }
+
+      if (filter.startDate) {
+        query = query.gte('created_at', filter.startDate);
+      }
+
+      if (filter.endDate) {
+        query = query.lte('created_at', filter.endDate);
+      }
+
+      // 按创建时间降序排序
+      query = query.order('created_at', { ascending: false });
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+      return { data: data || [], error: null };
+    } catch (error) {
+      console.error('Error getting payment requests:', error);
+      return { data: [], error: error as Error };
+    }
+  }
+
+  async getPaymentRequest(id: string): Promise<{ data: DbPaymentRequest | null; error: Error | null }> {
+    try {
+      const { data, error } = await supabaseClient
+        .from('payment_requests')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) throw error;
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error getting payment request:', error);
+      return { data: null, error: error as Error };
+    }
+  }
+
+  async updatePaymentRequestStatus(id: string, status: 'pending' | 'paid' | 'cancelled' | 'expired'): Promise<{ error: Error | null }> {
+    try {
+      const { error } = await supabaseClient
+        .from('payment_requests')
+        .update({ 
+          status,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+
+      if (error) throw error;
+      return { error: null };
+    } catch (error) {
+      console.error('Error updating payment request status:', error);
+      return { error: error as Error };
+    }
+  }
+
+  startExpirationCheck() {
+    // 每小时检查一次过期的支付请求
+    setInterval(async () => {
+      try {
+        const now = new Date().toISOString();
+        const { data: expiredRequests } = await supabaseClient
+          .from('payment_requests')
+          .select('id')
+          .eq('status', 'pending')
+          .lt('expires_at', now);
+
+        if (expiredRequests) {
+          for (const request of expiredRequests) {
+            await this.updatePaymentRequestStatus(request.id, 'expired');
+          }
+        }
+      } catch (error) {
+        console.error('Error checking expired payment requests:', error);
+      }
+    }, 60 * 60 * 1000); // 1小时
+  }
+
+  private mapDbInvoiceToInvoiceRecord(dbInvoice: DbInvoice): InvoiceRecord {
     return {
       id: dbInvoice.id,
       documentId: dbInvoice.document_id,
       type: dbInvoice.type,
       date: dbInvoice.date,
       customerName: dbInvoice.customer_name,
-      customerAddress: dbInvoice.customer_address,
+      customerAddress: dbInvoice.customer_address || '',
       from: dbInvoice.from_address,
       to: dbInvoice.to_address,
       amount: dbInvoice.amount,
       tokenSymbol: dbInvoice.token_symbol,
       decimals: dbInvoice.decimals,
-      description: dbInvoice.description,
-      tags: dbInvoice.tags,
-      additionalNotes: dbInvoice.additional_notes,
+      description: dbInvoice.description || '',
+      tags: dbInvoice.tags || [],
+      additionalNotes: dbInvoice.additional_notes || '',
       transactionHash: dbInvoice.transaction_hash,
       signatureStatus: dbInvoice.signature_status,
       signedBy: dbInvoice.signed_by,
-      walletAddress: dbInvoice.wallet_address,
-      createdAt: dbInvoice.created_at,
+      createdAt: dbInvoice.created_at
     };
   }
 }
 
-export const db = new DatabaseService(); 
+export const db = new DatabaseService();
+
+// 启动过期检查
+db.startExpirationCheck(); 

@@ -34,69 +34,91 @@ const getNativeTokenSymbol = (network: 'ethereum' | 'polygon' | 'optimism' | 'ar
 };
 
 class BlockchainService {
-  async getTransactionDetails(txHash: string): Promise<TransactionDetails | null> {
+  async getTransactionDetails(txHash: string, chainId?: number): Promise<TransactionDetails | null> {
     try {
+      // 根据chainId选择API端点
+      let apiEndpoint = API_ENDPOINTS.ethereum;
+      let apiKey = ETHERSCAN_API_KEY;
+      let currentChainId = chainId || 1;
+
+      switch (chainId) {
+        case 137: // Polygon
+          apiEndpoint = API_ENDPOINTS.polygon;
+          apiKey = process.env.NEXT_PUBLIC_POLYGONSCAN_API_KEY;
+          break;
+        case 10: // Optimism
+          apiEndpoint = API_ENDPOINTS.optimism;
+          apiKey = process.env.NEXT_PUBLIC_OPTIMISM_API_KEY;
+          break;
+        case 42161: // Arbitrum
+          apiEndpoint = API_ENDPOINTS.arbitrum;
+          apiKey = process.env.NEXT_PUBLIC_ARBISCAN_API_KEY;
+          break;
+      }
+
       // 获取交易详情
-      const txResponse = await axios.get(API_ENDPOINTS.ethereum, {
+      const txResponse = await axios.get(apiEndpoint, {
         params: {
           module: 'proxy',
           action: 'eth_getTransactionByHash',
           txhash: txHash,
-          apikey: ETHERSCAN_API_KEY,
+          apikey: apiKey,
         },
       });
 
       if (!txResponse.data.result) {
-        return null;
+        return {
+          blockNumber: 0,
+          status: 'pending',
+          chainId: currentChainId
+        };
       }
 
       const tx = txResponse.data.result;
 
       // 获取交易收据（包含状态）
-      const receiptResponse = await axios.get(API_ENDPOINTS.ethereum, {
+      const receiptResponse = await axios.get(apiEndpoint, {
         params: {
           module: 'proxy',
           action: 'eth_getTransactionReceipt',
           txhash: txHash,
-          apikey: ETHERSCAN_API_KEY,
+          apikey: apiKey,
         },
       });
 
+      // 如果没有收据，说明交易还在pending状态
       if (!receiptResponse.data.result) {
-        return null;
+        return {
+          blockNumber: parseInt(tx.blockNumber || '0x0', 16),
+          status: 'pending',
+          chainId: currentChainId
+        };
       }
 
       const receipt = receiptResponse.data.result;
 
-      // 获取区块信息（包含时间戳）
-      const blockResponse = await axios.get(API_ENDPOINTS.ethereum, {
-        params: {
-          module: 'block',
-          action: 'getblockreward',
-          blockno: parseInt(receipt.blockNumber, 16).toString(),
-          apikey: ETHERSCAN_API_KEY,
-        },
-      });
-
-      if (blockResponse.data.status !== '1' || !blockResponse.data.result) {
-        return null;
-      }
-
       return {
         blockNumber: parseInt(receipt.blockNumber, 16),
         status: receipt.status === '0x1' ? 'success' : 'failed',
-        chainId: 1, // Assuming chainId is 1 for Ethereum
+        chainId: currentChainId
       };
     } catch (error) {
       console.error('Error fetching transaction details:', error);
-      return null;
+      // 如果API调用失败，返回一个基本的结果而不是null
+      return {
+        blockNumber: 0,
+        status: 'unknown',
+        chainId: chainId || 1
+      };
     }
   }
 
   getExplorerUrl(txHash: string, chainId: number = 1): string {
     const explorers: Record<number, string> = {
       1: 'https://etherscan.io',
-      5: 'https://goerli.etherscan.io',
+      137: 'https://polygonscan.com',
+      10: 'https://optimistic.etherscan.io',
+      42161: 'https://arbiscan.io',
       11155111: 'https://sepolia.etherscan.io',
     };
     
