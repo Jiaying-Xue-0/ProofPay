@@ -159,11 +159,11 @@ export function PaymentRequestForm({ onSubmit }: PaymentRequestFormProps) {
       const expiresAt = new Date();
       expiresAt.setHours(expiresAt.getHours() + parseInt(formData.expiresIn));
 
-      // 创建支付请求
+      // 创建支付请求，直接使用用户输入的金额字符串，不做任何转换
       const { data, error: dbError } = await db.createPaymentRequest({
         amount: formData.amount,
         token_symbol: selectedToken.symbol,
-        token_address: selectedToken.address,
+        token_address: selectedToken.address === '0x0000000000000000000000000000000000000000' ? 'native' : selectedToken.address,
         chain_id: selectedChain.id,
         customer_name: formData.customerName,
         description: formData.description,

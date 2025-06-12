@@ -490,14 +490,23 @@ export class DatabaseService {
     }
   }
 
-  async updatePaymentRequestStatus(id: string, status: 'pending' | 'paid' | 'cancelled' | 'expired'): Promise<{ error: Error | null }> {
+  async updatePaymentRequestStatus(id: string, status: 'paid' | 'cancelled' | 'expired', payer_address?: string): Promise<{ error: Error | null }> {
     try {
+      const updateData: any = {
+        status,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (status === 'paid') {
+        updateData.paid_at = new Date().toISOString();
+        if (payer_address) {
+          updateData.payer_address = payer_address.toLowerCase();
+        }
+      }
+
       const { error } = await supabaseClient
         .from('payment_requests')
-        .update({ 
-          status,
-          updated_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('id', id);
 
       if (error) throw error;

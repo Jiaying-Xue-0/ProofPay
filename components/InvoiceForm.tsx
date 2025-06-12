@@ -7,6 +7,7 @@ import { storage } from '../services/storage';
 import { blockchain } from '../services/blockchain';
 import { generateSignatureMessage } from '../utils/signature';
 import { SignatureStatus } from '../types/storage';
+import { ethers } from 'ethers';
 
 const PREDEFINED_TAGS = [
   'Salary',
@@ -17,11 +18,17 @@ const PREDEFINED_TAGS = [
   'Others',
 ];
 
-// 格式化 USDT 金额，保留 6 位小数，并进行单位转换
-const formatUSDTAmount = (amount: string): string => {
-  const num = parseFloat(amount);
-  // USDT 合约金额需要除以 10^6 来得到实际金额
-  return (num / 1000000).toFixed(6);
+// 格式化金额的辅助函数
+const formatAmount = (amount: string, decimals: number): string => {
+  try {
+    // 移除可能存在的小数部分，确保是整数字符串
+    const [integerPart] = amount.split('.');
+    const cleanAmount = integerPart.replace(/[^\d]/g, '');
+    return ethers.utils.formatUnits(cleanAmount, decimals);
+  } catch (error) {
+    console.error('Error formatting amount:', error);
+    return amount;
+  }
 };
 
 interface InvoiceFormProps {
@@ -46,7 +53,7 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
   const [error, setError] = useState<string | null>(null);
   const [signatureStatus, setSignatureStatus] = useState<SignatureStatus>('pending');
 
-  const isIncome = transaction.to.toLowerCase() === address?.toLowerCase();
+  const isIncome = transaction.from.toLowerCase() !== address?.toLowerCase();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,7 +73,7 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
 
         const message = generateSignatureMessage({
           walletAddress: address,
-          amount: formatUSDTAmount(transaction.value),
+          amount: formatAmount(transaction.value, transaction.decimals || 18),
           token: transaction.tokenSymbol,
           fromAddress: transaction.from,
           date: new Date(transaction.timestamp * 1000).toLocaleDateString(),
@@ -88,7 +95,6 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
 
       const documentId = generateDocumentId(type);
       const date = new Date(transaction.timestamp * 1000).toISOString().split('T')[0];
-      const amount = formatUSDTAmount(transaction.value);
 
       // 获取区块链交易详情
       const txDetails = await blockchain.getTransactionDetails(transaction.hash);
@@ -116,10 +122,7 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
         signatureStatus: (isIncome && type === 'income') || (!isIncome && type === 'expense')
           ? (signature ? 'signed' : 'pending')
           : 'unverifiable',
-        signedBy: signature ? address : undefined,
-        signedAt: signature ? new Date() : undefined,
-        signature,
-        signedMessage,
+        signedBy: signature ? address : undefined
       });
 
       // 生成 PDF
@@ -131,8 +134,9 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
         customerAddress: formData.customerAddress,
         from: transaction.from,
         to: transaction.to,
-        amount,
+        amount: transaction.value,
         tokenSymbol: transaction.tokenSymbol,
+        decimals: transaction.decimals || 18,
         description: formData.description,
         tags: formData.tags,
         additionalNotes: formData.additionalNotes,
@@ -155,9 +159,12 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
       const shareUrl = new URL(`/verify/${documentId}`, window.location.origin);
       setShareLink(shareUrl.toString());
       setShowShareLink(true);
-    } catch (error) {
-      console.error('Form submission error:', error);
-      setError(error instanceof Error ? error.message : '发票生成失败，请重试');
+
+      // 关闭表单
+      onClose();
+    } catch (err) {
+      console.error('Form submission error:', err);
+      setError(err instanceof Error ? err.message : '提交失败，请重试');
     } finally {
       setIsLoading(false);
     }

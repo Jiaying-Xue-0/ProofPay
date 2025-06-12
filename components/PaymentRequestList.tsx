@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { useWalletStore } from '../store/walletStore';
-import useSWR from 'swr';
+import useSWR, { mutate } from 'swr';
 import { db, DbPaymentRequest } from '../services/db';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format, formatDistanceToNow, isPast } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { Dialog } from '@headlessui/react';
 import Link from 'next/link';
+import { shortenAddress } from '../utils/address';
 
 interface PaymentRequestListProps {
   onCreateRequest?: () => void;
@@ -20,14 +21,29 @@ export function PaymentRequestList({ onCreateRequest }: PaymentRequestListProps)
   const [copySuccess, setCopySuccess] = useState<string | null>(null);
 
   // 获取支付请求数据
-  const { data: requests, isLoading } = useSWR<DbPaymentRequest[]>(
+  const { data: requests, isLoading, mutate: mutateRequests } = useSWR<DbPaymentRequest[]>(
     currentConnectedWallet ? ['payment_requests', currentConnectedWallet] : null,
     async () => {
       const { data, error } = await db.getPaymentRequests({ requesterAddress: currentConnectedWallet || '' });
       if (error) throw error;
       return data;
+    },
+    {
+      refreshInterval: 5000, // 每5秒自动刷新一次
+      revalidateOnFocus: true, // 当页面重新获得焦点时重新验证
+      revalidateOnReconnect: true // 当网络重新连接时重新验证
     }
   );
+
+  // 更新选中的请求状态
+  useEffect(() => {
+    if (selectedRequest && requests) {
+      const updatedRequest = requests.find(r => r.id === selectedRequest.id);
+      if (updatedRequest && updatedRequest.status !== selectedRequest.status) {
+        setSelectedRequest(updatedRequest);
+      }
+    }
+  }, [requests, selectedRequest]);
 
   const handleCopyLink = async (id: string, link: string) => {
     try {
@@ -44,14 +60,26 @@ export function PaymentRequestList({ onCreateRequest }: PaymentRequestListProps)
     setIsDetailOpen(true);
   };
 
+  // 手动刷新数据
+  const refreshData = () => {
+    mutateRequests();
+  };
+
+  // 在对话框关闭时刷新数据
+  const handleCloseDialog = () => {
+    setIsDetailOpen(false);
+    refreshData();
+  };
+
   const getExpirationStatus = (expiresAt: string) => {
     const expireDate = new Date(expiresAt);
     if (isPast(expireDate)) {
       return { status: 'expired', text: '已过期' };
     }
+    const timeLeft = formatDistanceToNow(expireDate, { locale: zhCN });
     return {
       status: 'active',
-      text: `${formatDistanceToNow(expireDate, { locale: zhCN })}后过期`
+      text: `${timeLeft}后过期`
     };
   };
 
@@ -218,7 +246,7 @@ export function PaymentRequestList({ onCreateRequest }: PaymentRequestListProps)
       {/* 详情对话框 */}
       <Dialog
         open={isDetailOpen}
-        onClose={() => setIsDetailOpen(false)}
+        onClose={handleCloseDialog}
         className="relative z-50"
       >
         <div className="fixed inset-0 bg-black/20 backdrop-blur-sm" aria-hidden="true" />
@@ -352,6 +380,64 @@ export function PaymentRequestList({ onCreateRequest }: PaymentRequestListProps)
                       </div>
                     </div>
 
+                    {/* 支付方信息 - 仅在已支付状态下显示 */}
+                    {selectedRequest.status === 'paid' && selectedRequest.payer_address && (
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-medium text-gray-500">支付方钱包地址</h4>
+                        <div className="flex items-center space-x-3 p-4 bg-gray-50 rounded-xl">
+                          <div className="flex-shrink-0">
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-blue-500 p-[2px]">
+                              <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
+                                <svg className="w-4 h-4 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                                </svg>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-mono text-sm text-gray-900">
+                              {selectedRequest.payer_address ? shortenAddress(selectedRequest.payer_address) : ''}
+                            </div>
+                            <div className="text-xs text-gray-500">支付方地址</div>
+                          </div>
+                          <motion.button
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => selectedRequest.payer_address && handleCopyLink('payer_' + selectedRequest.id, selectedRequest.payer_address)}
+                            className="flex items-center px-3 py-1.5 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors duration-200"
+                          >
+                            <AnimatePresence mode="wait">
+                              {copySuccess === 'payer_' + selectedRequest.id ? (
+                                <motion.div
+                                  initial={{ opacity: 0, scale: 0.5 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  exit={{ opacity: 0, scale: 0.5 }}
+                                  className="flex items-center text-green-600"
+                                >
+                                  <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                  <span className="text-sm">已复制</span>
+                                </motion.div>
+                              ) : (
+                                <motion.div
+                                  initial={{ opacity: 0, scale: 0.5 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  exit={{ opacity: 0, scale: 0.5 }}
+                                  className="flex items-center text-gray-600"
+                                >
+                                  <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                  </svg>
+                                  <span className="text-sm">复制</span>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </motion.button>
+                        </div>
+                      </div>
+                    )}
+
                     {/* 描述和备注 */}
                     {(selectedRequest.description || selectedRequest.additional_notes) && (
                       <div className="space-y-4">
@@ -392,7 +478,7 @@ export function PaymentRequestList({ onCreateRequest }: PaymentRequestListProps)
                       <motion.button
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
-                        onClick={() => setIsDetailOpen(false)}
+                        onClick={handleCloseDialog}
                         className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors duration-200"
                       >
                         关闭
