@@ -104,7 +104,7 @@ export function PrePaymentInvoiceForm() {
       const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
       const documentId = `INC-${year}${month}${day}-${random}`;
 
-      // 1. 首先创建支付请求
+      // 创建支付请求
       const paymentRequest = {
         id: documentId,
         requester_address: formData.receiverAddress,
@@ -130,7 +130,7 @@ export function PrePaymentInvoiceForm() {
         throw new Error('创建支付请求失败');
       }
 
-      // 2. 然后创建发票，使用支付请求中的payment_link
+      // 创建发票
       const invoice = {
         documentId,
         type: 'income' as const,
@@ -149,7 +149,7 @@ export function PrePaymentInvoiceForm() {
         signatureStatus: 'pending' as const,
         invoiceType: 'pre_payment_invoice' as const,
         status: 'unpaid' as const,
-        paymentLink: savedPaymentRequest.payment_link, // 使用支付请求中的payment_link
+        paymentLink: savedPaymentRequest.payment_link,
         dueDate: formData.dueDate,
         updatedAt: new Date().toISOString(),
       };

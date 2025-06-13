@@ -22,12 +22,15 @@ interface FilterState {
 type ActiveTab = 'invoices' | 'payment_requests' | 'payment_request_form';
 
 // 格式化金额的辅助函数
-const formatAmount = (amount: string, decimals: number): string => {
+const formatAmount = (amount: string, decimals: number, invoiceType?: string): string => {
   try {
-    // 移除可能存在的小数部分，确保是整数字符串
-    const [integerPart] = amount.split('.');
-    const cleanAmount = integerPart.replace(/[^\d]/g, '');
-    return ethers.utils.formatUnits(cleanAmount, decimals);
+    // 对于 pre_payment_invoice 类型，直接返回原始金额
+    if (invoiceType === 'pre_payment_invoice') {
+      return amount;
+    }
+    // 其他类型的发票需要转换
+    const formattedAmount = ethers.utils.formatUnits(amount, decimals);
+    return formattedAmount.replace(/\.?0+$/, '');
   } catch (error) {
     console.error('Error formatting amount:', error);
     return amount;
@@ -45,6 +48,7 @@ export function InvoiceHistory() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [loadingStates, setLoadingStates] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
+  const [isCopied, setIsCopied] = useState(false);
   const { currentConnectedWallet } = useWalletStore();
   const { address } = useAccount();
   const [activeTab, setActiveTab] = useState<ActiveTab>('invoices');
@@ -321,7 +325,7 @@ export function InvoiceHistory() {
                         <p className="text-sm text-gray-600 line-clamp-1">{invoice.description}</p>
                         <div className="mt-1.5 flex items-center space-x-2">
                           <span className="text-sm font-semibold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                            {formatAmount(invoice.amount, invoice.decimals)} {invoice.tokenSymbol}
+                            {formatAmount(invoice.amount, invoice.decimals, invoice.invoiceType)} {invoice.tokenSymbol}
                           </span>
                           {invoice.tags && invoice.tags.length > 0 && (
                             <>
@@ -445,8 +449,20 @@ export function InvoiceHistory() {
                   <div className="space-y-1">
                     <h4 className="text-sm font-medium text-gray-500">金额</h4>
                     <p className="text-sm font-semibold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                      {formatAmount(selectedInvoice.amount, selectedInvoice.decimals)} {selectedInvoice.tokenSymbol}
+                      {formatAmount(selectedInvoice.amount, selectedInvoice.decimals, selectedInvoice.invoiceType)} {selectedInvoice.tokenSymbol}
                     </p>
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-medium text-gray-500">状态</h4>
+                    <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      selectedInvoice.status === 'paid'
+                        ? 'bg-green-100 text-green-800'
+                        : selectedInvoice.status === 'unpaid'
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {selectedInvoice.status === 'paid' ? '已支付' : selectedInvoice.status === 'unpaid' ? '待支付' : '未知'}
+                    </div>
                   </div>
                   <div className="col-span-2 space-y-1">
                     <h4 className="text-sm font-medium text-gray-500">描述</h4>
@@ -458,9 +474,75 @@ export function InvoiceHistory() {
                       <p className="text-sm text-gray-900">{selectedInvoice.additionalNotes}</p>
                     </div>
                   )}
+                  {selectedInvoice.invoiceType === 'pre_payment_invoice' && selectedInvoice.paymentLink && (
+                    <div className="col-span-2 space-y-1">
+                      <h4 className="text-sm font-medium text-gray-500">支付链接</h4>
+                      <div className="flex items-center space-x-2">
+                        <div className="flex-1 relative group">
+                          <input
+                            type="text"
+                            readOnly
+                            value={selectedInvoice.paymentLink || ''}
+                            className="w-full text-sm font-mono bg-gray-50/50 backdrop-blur-sm border border-gray-200 rounded-xl px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-200"
+                          />
+                          <button
+                            onClick={() => {
+                              if (selectedInvoice.paymentLink) {
+                                navigator.clipboard.writeText(selectedInvoice.paymentLink);
+                                setIsCopied(true);
+                                setTimeout(() => setIsCopied(false), 2000);
+                              }
+                            }}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-all duration-300 hover:bg-purple-500/10 group-hover:bg-purple-500/5"
+                          >
+                            <div className="relative">
+                              <motion.div
+                                initial={false}
+                                animate={{
+                                  scale: isCopied ? 1 : 0,
+                                  opacity: isCopied ? 1 : 0,
+                                }}
+                                transition={{ duration: 0.2 }}
+                                className="absolute inset-0 flex items-center justify-center"
+                              >
+                                <svg className="w-5 h-5 text-purple-600" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              </motion.div>
+                              <motion.div
+                                initial={false}
+                                animate={{
+                                  scale: isCopied ? 0 : 1,
+                                  opacity: isCopied ? 0 : 1,
+                                }}
+                                transition={{ duration: 0.2 }}
+                              >
+                                <svg className="w-5 h-5 text-gray-500 group-hover:text-purple-600 transition-colors duration-200" viewBox="0 0 20 20" fill="currentColor">
+                                  <path d="M7 9a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H9a2 2 0 01-2-2V9z" />
+                                  <path d="M5 3a2 2 0 00-2 2v6a2 2 0 002 2V5h8a2 2 0 00-2-2H5z" />
+                                </svg>
+                              </motion.div>
+                            </div>
+                          </button>
+                          <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{
+                              opacity: isCopied ? 1 : 0,
+                              y: isCopied ? 0 : 10,
+                            }}
+                            transition={{ duration: 0.2 }}
+                            className="absolute -top-8 left-1/2 transform -translate-x-1/2 px-3 py-1.5 bg-gradient-to-r from-purple-600/90 to-indigo-600/90 backdrop-blur-sm text-white text-xs rounded-lg shadow-lg whitespace-nowrap"
+                          >
+                            已复制到剪贴板
+                            <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-purple-600 rotate-45"></div>
+                          </motion.div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   <div className="col-span-2 space-y-1">
                     <h4 className="text-sm font-medium text-gray-500">交易哈希</h4>
-                    <p className="text-sm font-mono text-gray-900 break-all">{selectedInvoice.transactionHash}</p>
+                    <p className="text-sm font-mono text-gray-900 break-all">{selectedInvoice.transactionHash || '暂无'}</p>
                   </div>
                 </div>
                 <div className="mt-8 flex justify-end space-x-3">
