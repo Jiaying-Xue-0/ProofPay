@@ -16,7 +16,7 @@ const PREDEFINED_TAGS = [
   'Development',
   'Consulting',
   'Others',
-];
+] as const;
 
 // 格式化金额的辅助函数
 const formatAmount = (amount: string, decimals: number): string => {
@@ -29,6 +29,17 @@ const formatAmount = (amount: string, decimals: number): string => {
     console.error('Error formatting amount:', error);
     return amount;
   }
+};
+
+// 获取区块链浏览器链接
+const getExplorerLink = (chainId: string, txHash: string): string => {
+  const chainIdNum = Number(chainId);
+  const baseUrl = chainIdNum === 1 ? 'etherscan.io' :
+                 chainIdNum === 5 ? 'goerli.etherscan.io' :
+                 chainIdNum === 137 ? 'polygonscan.com' :
+                 chainIdNum === 80001 ? 'mumbai.polygonscan.com' :
+                 'etherscan.io';
+  return `https://${baseUrl}/tx/${txHash}`;
 };
 
 interface InvoiceFormProps {
@@ -45,7 +56,7 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
     customerAddress: '',
     description: '',
     additionalNotes: '',
-    tags: [] as string[],
+    tags: [] as typeof PREDEFINED_TAGS[number][],
   });
   const [showShareLink, setShowShareLink] = useState(false);
   const [shareLink, setShareLink] = useState('');
@@ -68,7 +79,7 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
       // 如果是收入发票或支出收据，需要签名
       if ((isIncome && type === 'income') || (!isIncome && type === 'expense')) {
         if (!address) {
-          throw new Error('请先连接钱包');
+          throw new Error('Please connect your wallet first');
         }
 
         const message = generateSignatureMessage({
@@ -88,7 +99,7 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
         const recoveredAddress = await blockchain.verifySignature(message, signature);
         if (recoveredAddress.toLowerCase() !== address.toLowerCase()) {
           setSignatureStatus('mismatch');
-          throw new Error('签名验证失败');
+          throw new Error('Signature verification failed');
         }
         setSignatureStatus('signed');
       }
@@ -100,11 +111,14 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
       const txDetails = await blockchain.getTransactionDetails(transaction.hash);
 
       if (!txDetails) {
-        throw new Error('无法获取交易详情，请确保交易已确认');
+        throw new Error('Unable to get transaction details. Please ensure the transaction is confirmed.');
       }
 
+      // 获取区块链浏览器链接
+      const explorerLink = getExplorerLink(transaction.chain, transaction.hash);
+
       // 保存到本地存储
-      const savedDocument = await storage.saveInvoice({
+      await storage.saveInvoice({
         documentId,
         transactionHash: transaction.hash,
         type,
@@ -122,7 +136,10 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
         signatureStatus: (isIncome && type === 'income') || (!isIncome && type === 'expense')
           ? (signature ? 'signed' : 'pending')
           : 'unverifiable',
-        signedBy: signature ? address : undefined
+        signedBy: signature ? address : undefined,
+        invoiceType: 'post_payment_invoice',
+        status: 'paid',
+        updatedAt: new Date().toISOString()
       });
 
       // 生成 PDF
@@ -149,6 +166,9 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
           ? (signature ? 'signed' : 'pending')
           : 'unverifiable',
         signedBy: signature ? address : undefined,
+        invoiceType: 'post_payment_invoice',
+        status: 'paid',
+        explorerLink,
       });
 
       // 保存 PDF
@@ -164,13 +184,13 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
       onClose();
     } catch (err) {
       console.error('Form submission error:', err);
-      setError(err instanceof Error ? err.message : '提交失败，请重试');
+      setError(err instanceof Error ? err.message : 'Submission failed, please try again');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleTagToggle = (tag: string) => {
+  const handleTagToggle = (tag: typeof PREDEFINED_TAGS[number]) => {
     setFormData(prev => ({
       ...prev,
       tags: prev.tags.includes(tag)
@@ -201,7 +221,7 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
           htmlFor="customerName"
           className="block text-sm font-medium text-gray-700"
         >
-          客户名称
+          Customer Name
         </label>
         <input
           type="text"
@@ -221,7 +241,7 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
           htmlFor="customerAddress"
           className="block text-sm font-medium text-gray-700"
         >
-          客户地址（可选）
+          Customer Address (Optional)
         </label>
         <input
           type="text"
@@ -240,7 +260,7 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
           htmlFor="description"
           className="block text-sm font-medium text-gray-700"
         >
-          描述
+          Description
         </label>
         <textarea
           name="description"
@@ -257,7 +277,7 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          标签
+          Tags
         </label>
         <div className="flex flex-wrap gap-2">
           {PREDEFINED_TAGS.map((tag) => (
@@ -282,7 +302,7 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
           htmlFor="additionalNotes"
           className="block text-sm font-medium text-gray-700"
         >
-          额外备注
+          Additional Notes
         </label>
         <textarea
           name="additionalNotes"
@@ -305,11 +325,11 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
               </svg>
             </div>
             <div className="ml-3">
-              <h3 className="text-sm font-medium text-yellow-800">需要签名确认</h3>
+              <h3 className="text-sm font-medium text-yellow-800">Signature Required</h3>
               <div className="mt-2 text-sm text-yellow-700">
                 <p>{isIncome 
-                  ? '生成收入凭证需要您使用钱包签名，以证明您是此笔收入的接收方。'
-                  : '生成支出凭证需要您使用钱包签名，以证明您是此笔支出的支付方。'}</p>
+                  ? 'To generate an income receipt, you need to sign with your wallet to prove you are the recipient.'
+                  : 'To generate an expense receipt, you need to sign with your wallet to prove you are the payer.'}</p>
               </div>
             </div>
           </div>
@@ -318,7 +338,7 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
 
       {showShareLink && (
         <div className="mt-4 p-4 bg-gray-50 rounded-md">
-          <p className="text-sm font-medium text-gray-700 mb-2">分享链接：</p>
+          <p className="text-sm font-medium text-gray-700 mb-2">Share Link:</p>
           <div className="flex items-center space-x-2">
             <input
               type="text"
@@ -331,7 +351,7 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
               onClick={() => navigator.clipboard.writeText(shareLink)}
               className="px-4 h-10 bg-white text-gray-700 rounded-md border border-gray-300 hover:bg-gray-50 text-sm"
             >
-              复制
+              Copy
             </button>
           </div>
         </div>
@@ -344,14 +364,14 @@ export function InvoiceForm({ transaction, type, onClose }: InvoiceFormProps) {
           disabled={isLoading}
           className="rounded-md border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
         >
-          取消
+          Cancel
         </button>
         <button
           type="submit"
           disabled={isLoading}
           className="inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
         >
-          {isLoading ? '处理中...' : `生成${type === 'income' ? '收入' : '支出'}凭证`}
+          {isLoading ? 'Processing...' : `Generate ${type === 'income' ? 'Income' : 'Expense'} Receipt`}
         </button>
       </div>
     </form>

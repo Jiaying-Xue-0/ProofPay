@@ -25,15 +25,35 @@ interface PDFData {
   chainId: number;
   signatureStatus: SignatureStatus;
   signedBy?: string;
+  invoiceType?: 'pre_payment_invoice' | 'post_payment_invoice';
+  status?: 'paid' | 'unpaid' | 'expired';
+  paymentLink?: string;
+  dueDate?: string;
+  explorerLink?: string;
 }
 
-// 格式化金额的辅助函数
-const formatAmount = (amount: string, decimals: number): string => {
+const getStatusText = (status: SignatureStatus, signedBy?: string): string => {
+  switch (status) {
+    case 'signed':
+      return `Signed by ${shortenAddress(signedBy || '')}`;
+    case 'pending':
+      return 'Pending verification';
+    case 'mismatch':
+      return 'Signature mismatch';
+    case 'unverifiable':
+      return 'Not verifiable';
+    default:
+      return 'Unknown status';
+  }
+};
+
+const formatAmount = (amount: string, decimals: number, invoiceType?: string): string => {
   try {
-    // 移除可能存在的小数部分，确保是整数字符串
-    const [integerPart] = amount.split('.');
-    const cleanAmount = integerPart.replace(/[^\d]/g, '');
-    return ethers.utils.formatUnits(cleanAmount, decimals);
+    if (invoiceType === 'pre_payment_invoice') {
+      return amount;
+    }
+    const formattedAmount = ethers.utils.formatUnits(amount, decimals);
+    return formattedAmount.replace(/\.?0+$/, '');
   } catch (error) {
     console.error('Error formatting amount:', error);
     return amount;
@@ -73,7 +93,7 @@ export async function generatePDF(data: PDFData): Promise<jsPDF> {
   // Document Title
   doc.setFontSize(24);
   doc.setFont('helvetica', 'bold');
-  doc.text(data.type === 'income' ? 'INVOICE' : 'EXPENSE RECEIPT', pageWidth / 2, y, { align: 'center' });
+  doc.text('INVOICE', pageWidth / 2, y, { align: 'center' });
   y += 20;
 
   // Reset font for content
@@ -83,7 +103,10 @@ export async function generatePDF(data: PDFData): Promise<jsPDF> {
   // Document Information
   addTitle('Document Information');
   addField('Document ID:', data.documentId);
-  addField('Issue Date:', data.date);
+  addField('Issue Date:', new Date(data.date).toLocaleDateString('en-US'));
+  if (data.status) {
+    addField('Payment Status:', data.status.toUpperCase());
+  }
   addSeparator();
 
   // Customer Information
@@ -96,7 +119,10 @@ export async function generatePDF(data: PDFData): Promise<jsPDF> {
 
   // Transaction Details
   addTitle('Transaction Details');
-  addField('Amount:', `${formatAmount(data.amount, data.decimals)} ${data.tokenSymbol}`);
+  const displayAmount = data.invoiceType === 'pre_payment_invoice'
+    ? `${data.amount} ${data.tokenSymbol}`
+    : `${formatAmount(data.amount, data.decimals)} ${data.tokenSymbol}`;
+  addField('Amount:', displayAmount);
   addField('Description:', data.description);
   if (data.tags.length > 0) {
     addField('Tags:', data.tags.join(', '));
@@ -104,39 +130,55 @@ export async function generatePDF(data: PDFData): Promise<jsPDF> {
   if (data.additionalNotes) {
     addField('Notes:', data.additionalNotes);
   }
+
+  // 预付款发票特有字段
+  if (data.invoiceType === 'pre_payment_invoice' && data.status === 'unpaid') {
+    if (data.paymentLink) {
+      addField('Payment Link:', data.paymentLink);
+      doc.setTextColor(0, 0, 255);
+      doc.link(margin + 60, y - 7, doc.getTextWidth(data.paymentLink), 7, { url: data.paymentLink });
+      doc.setTextColor(0);
+    }
+    if (data.dueDate) {
+      const formattedDueDate = new Date(data.dueDate).toLocaleString('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      addField('Due Date:', formattedDueDate);
+    }
+  }
   addSeparator();
 
-  // Blockchain Information
-  addTitle('Blockchain Information');
-  addField('From:', data.from);
-  addField('To:', data.to);
-  addField('Block Number:', data.blockNumber.toString());
-  addField('Status:', data.transactionStatus);
-  addField('Transaction Hash:', data.transactionHash);
-
-  // Explorer Link
-  const explorerUrl = getExplorerUrl(data.chainId, data.transactionHash);
-  const explorerDomain = getExplorerDomain(data.chainId);
-  const shortHash = shortenAddress(data.transactionHash);
-  addField('Explorer Link:', `${explorerDomain}/tx/${shortHash}`);
-  doc.setTextColor(0, 0, 255);
-  doc.link(margin + 60, y - 7, pageWidth - (margin * 2 + 60), 7, { url: explorerUrl });
-  doc.setTextColor(0);
-  addSeparator();
+  // 区块链信息（只在非预付款发票或已支付的预付款发票中显示）
+  if (data.invoiceType !== 'pre_payment_invoice' || data.status === 'paid') {
+    addTitle('Blockchain Information');
+    if (data.from) {
+      addField('From:', data.from);
+    }
+    addField('To:', data.to);
+    addField('Block Number:', data.blockNumber.toString());
+    addField('Status:', data.transactionStatus);
+    if (data.transactionHash) {
+      addField('Transaction Hash:', data.transactionHash);
+      if (data.explorerLink) {
+        // 从 explorerLink 中提取域名和交易哈希
+        const url = new URL(data.explorerLink);
+        const displayText = `${url.hostname}/tx/${shortenAddress(data.transactionHash)}`;
+        addField('Explorer Link:', displayText);
+        doc.setTextColor(0, 0, 255);
+        doc.link(margin + 60, y - 7, doc.getTextWidth(displayText), 7, { url: data.explorerLink });
+        doc.setTextColor(0);
+      }
+    }
+    addSeparator();
+  }
 
   // Signature Status
   addTitle('Signature Status');
-  
-  // Ensure consistent font and spacing for signature status
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  
-  // Draw label and status text directly
-  doc.text('Status:', margin, y);
-  const statusText = getStatusText(data.signatureStatus, data.signedBy);
-  doc.text(statusText, margin + 60, y);
-  
-  y += 15;
+  addField('Status:', getStatusText(data.signatureStatus, data.signedBy));
 
   // QR Code and Verification Link
   const verifyUrl = `${window.location.origin}/verify/${data.documentId}`;
@@ -149,6 +191,7 @@ export async function generatePDF(data: PDFData): Promise<jsPDF> {
   doc.text('Verify this document at:', margin, y + qrSize / 2);
   doc.setTextColor(0, 0, 255);
   doc.text(verifyUrl, margin, y + qrSize / 2 + 4);
+  doc.link(margin, y + qrSize / 2 + 1, doc.getTextWidth(verifyUrl), 6, { url: verifyUrl });
   doc.setTextColor(0);
 
   // Footer
@@ -182,20 +225,5 @@ function getExplorerDomain(chainId: number): string {
     case 5: return 'goerli.etherscan.io';
     case 97: return 'testnet.bscscan.com';
     default: return 'etherscan.io';
-  }
-}
-
-function getStatusText(status: SignatureStatus, signedBy?: string): string {
-  switch (status) {
-    case 'signed':
-      return signedBy ? `Signed by ${shortenAddress(signedBy)}` : 'Signed';
-    case 'pending':
-      return 'Pending verification';
-    case 'mismatch':
-      return 'Signature verification failed';
-    case 'unverifiable':
-      return 'No signature required';
-    default:
-      return 'Unknown status';
   }
 } 

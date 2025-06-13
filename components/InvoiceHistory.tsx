@@ -87,6 +87,11 @@ export function InvoiceHistory() {
         chainId: Number(txDetails.chainId),
         signatureStatus: invoice.signatureStatus || 'pending',
         signedBy: invoice.signedBy,
+        status: invoice.status === 'cancelled' ? 'expired' : invoice.status,
+        invoiceType: invoice.invoiceType,
+        paymentLink: invoice.paymentLink,
+        dueDate: invoice.dueDate,
+        explorerLink: `https://etherscan.io/tx/${invoice.transactionHash}`
       });
 
       const fileName = `proofpay-${invoice.type}-${invoice.documentId}.pdf`;
