@@ -19,6 +19,11 @@ export interface InvoiceRecord {
   signatureStatus: SignatureStatus;
   signedBy?: string;
   createdAt: number;
+  invoiceType: 'pre_payment_invoice' | 'post_payment_invoice';
+  status: 'unpaid' | 'paid' | 'cancelled';
+  paymentLink?: string;
+  dueDate?: string;
+  updatedAt: string;
   blockchainData?: {
     blockNumber: number;
     status: string;

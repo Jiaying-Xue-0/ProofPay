@@ -59,6 +59,11 @@ interface DbInvoice {
   created_at: number;
   block_number?: number;
   request_id?: string;
+  invoice_type: 'pre_payment_invoice' | 'post_payment_invoice';
+  status: 'unpaid' | 'paid' | 'cancelled';
+  payment_link?: string;
+  due_date?: string;
+  updated_at: string;
 }
 
 export interface DbPaymentRequest {
@@ -220,7 +225,12 @@ export class DatabaseService {
           signature_status: invoice.signatureStatus || 'pending',
           signed_by: invoice.signedBy,
           wallet_address: walletAddress,
-          created_at: Date.now()
+          created_at: Date.now(),
+          invoice_type: invoice.invoiceType || 'post_payment_invoice',
+          status: invoice.status || 'paid',
+          payment_link: invoice.paymentLink,
+          due_date: invoice.dueDate,
+          updated_at: new Date().toISOString()
         })
         .select()
         .single();
@@ -558,7 +568,12 @@ export class DatabaseService {
       transactionHash: dbInvoice.transaction_hash,
       signatureStatus: dbInvoice.signature_status,
       signedBy: dbInvoice.signed_by,
-      createdAt: dbInvoice.created_at
+      createdAt: dbInvoice.created_at,
+      invoiceType: dbInvoice.invoice_type,
+      status: dbInvoice.status,
+      paymentLink: dbInvoice.payment_link,
+      dueDate: dbInvoice.due_date,
+      updatedAt: dbInvoice.updated_at
     };
   }
 }
