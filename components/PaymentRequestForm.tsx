@@ -133,7 +133,7 @@ export function PaymentRequestForm({ onSubmit }: PaymentRequestFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     try {
       setIsLoading(true);
       setError(null);
@@ -240,8 +240,8 @@ export function PaymentRequestForm({ onSubmit }: PaymentRequestFormProps) {
   }
 
   if (paymentRequest) {
-    return (
-      <div className="max-w-4xl mx-auto">
+  return (
+    <div className="max-w-4xl mx-auto">
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -302,9 +302,9 @@ export function PaymentRequestForm({ onSubmit }: PaymentRequestFormProps) {
                 </button>
               </motion.div>
 
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
                 onClick={() => {
                   setPaymentRequest(null);
                   setFormData({
@@ -318,10 +318,10 @@ export function PaymentRequestForm({ onSubmit }: PaymentRequestFormProps) {
                   setSelectedChain(null);
                   setSelectedToken(null);
                 }}
-                className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-medium rounded-xl hover:opacity-90 transition-opacity duration-200"
-              >
+                  className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-medium rounded-xl hover:opacity-90 transition-opacity duration-200"
+                >
                 创建新的收款请求
-              </motion.button>
+                </motion.button>
             </div>
           </div>
         </motion.div>
@@ -331,24 +331,24 @@ export function PaymentRequestForm({ onSubmit }: PaymentRequestFormProps) {
 
   return (
     <div className="max-w-4xl mx-auto">
-      <motion.form 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        onSubmit={handleSubmit} 
-        className="relative bg-white rounded-3xl shadow-2xl overflow-hidden"
-      >
-        <div className="absolute inset-0 bg-gradient-to-br from-purple-50 via-white to-blue-50 opacity-50" />
-        
-        {/* Header */}
-        <div className="relative px-8 pt-8 pb-6 border-b border-gray-100">
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+        <motion.form 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          onSubmit={handleSubmit} 
+          className="relative bg-white rounded-3xl shadow-2xl overflow-hidden"
+        >
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-50 via-white to-blue-50 opacity-50" />
+          
+          {/* Header */}
+          <div className="relative px-8 pt-8 pb-6 border-b border-gray-100">
+            <h2 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
             创建收款请求
-          </h2>
+            </h2>
           <p className="mt-2 text-gray-500">填写以下信息创建新的收款请求</p>
-        </div>
+          </div>
 
-        {/* Form Content */}
-        <div className="relative p-8 space-y-6">
+          {/* Form Content */}
+          <div className="relative p-8 space-y-6">
           {error && (
             <div className="rounded-md bg-red-50 p-4">
               <div className="flex">
@@ -364,85 +364,85 @@ export function PaymentRequestForm({ onSubmit }: PaymentRequestFormProps) {
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">选择链</label>
-              <motion.div whileHover={{ scale: 1.02 }} className="relative">
-                <select
-                  value={selectedChain?.id || ''}
-                  onChange={(e) => {
+            <div className="grid grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">选择链</label>
+                <motion.div whileHover={{ scale: 1.02 }} className="relative">
+                  <select
+                    value={selectedChain?.id || ''}
+                    onChange={(e) => {
                     const chain = SUPPORTED_CHAINS.find((c: ChainOption) => c.id === e.target.value);
-                    setSelectedChain(chain || null);
-                    setSelectedToken(null);
-                  }}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-200"
-                >
-                  <option value="">请选择</option>
+                      setSelectedChain(chain || null);
+                      setSelectedToken(null);
+                    }}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-200"
+                  >
+                    <option value="">请选择</option>
                   {SUPPORTED_CHAINS.map((chain: ChainOption) => (
-                    <option key={chain.id} value={chain.id}>
-                      {chain.name}
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none">
-                  <svg className="w-5 h-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              </motion.div>
+                      <option key={chain.id} value={chain.id}>
+                        {chain.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none">
+                    <svg className="w-5 h-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                </motion.div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-700">选择代币</label>
+                <motion.div whileHover={{ scale: 1.02 }} className="relative">
+                  <select
+                    value={selectedToken?.address || ''}
+                    onChange={(e) => {
+                    const token = SUPPORTED_TOKENS.find((t: TokenOption) => t.address === e.target.value);
+                      setSelectedToken(token || null);
+                    }}
+                    disabled={!selectedChain}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <option value="">请选择</option>
+                  {SUPPORTED_TOKENS.filter((token: TokenOption) => {
+                      const selectedChainId = selectedChain ? parseInt(selectedChain.id) : 0;
+                      return token.chainId === selectedChainId;
+                  }).map((token: TokenOption) => (
+                      <option key={token.address} value={token.address}>
+                        {token.symbol}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none">
+                    <svg className="w-5 h-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                </motion.div>
+              </div>
             </div>
 
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">选择代币</label>
+              <label className="block text-sm font-medium text-gray-700">金额</label>
               <motion.div whileHover={{ scale: 1.02 }} className="relative">
-                <select
-                  value={selectedToken?.address || ''}
-                  onChange={(e) => {
-                    const token = SUPPORTED_TOKENS.find((t: TokenOption) => t.address === e.target.value);
-                    setSelectedToken(token || null);
-                  }}
-                  disabled={!selectedChain}
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl appearance-none focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <option value="">请选择</option>
-                  {SUPPORTED_TOKENS.filter((token: TokenOption) => {
-                    const selectedChainId = selectedChain ? parseInt(selectedChain.id) : 0;
-                    return token.chainId === selectedChainId;
-                  }).map((token: TokenOption) => (
-                    <option key={token.address} value={token.address}>
-                      {token.symbol}
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute inset-y-0 right-0 flex items-center px-3 pointer-events-none">
-                  <svg className="w-5 h-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              </motion.div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">金额</label>
-            <motion.div whileHover={{ scale: 1.02 }} className="relative">
-              <input
-                type="number"
+                <input
+                  type="number"
                 value={formData.amount}
                 onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                placeholder="0.00"
-                step="any"
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-200"
-              />
-              {selectedToken && (
-                <div className="absolute inset-y-0 right-0 flex items-center px-4">
-                  <span className="text-gray-500">{selectedToken.symbol}</span>
-                </div>
-              )}
-            </motion.div>
-          </div>
+                  placeholder="0.00"
+                  step="any"
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-200"
+                />
+                {selectedToken && (
+                  <div className="absolute inset-y-0 right-0 flex items-center px-4">
+                    <span className="text-gray-500">{selectedToken.symbol}</span>
+                  </div>
+                )}
+              </motion.div>
+            </div>
 
-          <div className="space-y-2">
+            <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700">客户名称</label>
             <motion.div whileHover={{ scale: 1.02 }}>
               <input
@@ -457,16 +457,16 @@ export function PaymentRequestForm({ onSubmit }: PaymentRequestFormProps) {
 
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700">描述</label>
-            <motion.div whileHover={{ scale: 1.02 }}>
-              <textarea
+              <motion.div whileHover={{ scale: 1.02 }}>
+                <textarea
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="添加付款说明..."
-                rows={3}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-200 resize-none"
-              />
-            </motion.div>
-          </div>
+                  placeholder="添加付款说明..."
+                  rows={3}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-200 resize-none"
+                />
+              </motion.div>
+            </div>
 
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700">标签</label>
@@ -524,26 +524,26 @@ export function PaymentRequestForm({ onSubmit }: PaymentRequestFormProps) {
             </motion.div>
           </div>
 
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">收款地址</label>
-            <div className="flex items-center space-x-3 px-4 py-3 bg-gray-50 rounded-xl border border-gray-200">
-              <div className="flex-shrink-0">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-500 to-blue-500 p-[2px]">
-                  <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
-                    <svg className="w-5 h-5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                    </svg>
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-gray-700">收款地址</label>
+              <div className="flex items-center space-x-3 px-4 py-3 bg-gray-50 rounded-xl border border-gray-200">
+                <div className="flex-shrink-0">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-r from-purple-500 to-blue-500 p-[2px]">
+                    <div className="w-full h-full rounded-full bg-white flex items-center justify-center">
+                      <svg className="w-5 h-5 text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                      </svg>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <div>
-                <span className="block text-sm font-mono text-gray-900">
-                  {shortenAddress(currentConnectedWallet)}
-                </span>
-                <span className="text-xs text-gray-500">当前连接的钱包地址</span>
+                <div>
+                  <span className="block text-sm font-mono text-gray-900">
+                    {shortenAddress(currentConnectedWallet)}
+                  </span>
+                  <span className="text-xs text-gray-500">当前连接的钱包地址</span>
+                </div>
               </div>
             </div>
-          </div>
 
           {/* 添加自定义代币部分 */}
           {selectedChain && (
@@ -571,37 +571,37 @@ export function PaymentRequestForm({ onSubmit }: PaymentRequestFormProps) {
                         <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
+                    </svg>
                         <span>加载中...</span>
-                      </div>
+                  </div>
                     ) : '添加代币'}
                   </motion.button>
                 </div>
               </div>
             </div>
-          )}
+            )}
 
-          <div className="pt-4">
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              type="submit"
-              disabled={isLoading}
-              className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-medium rounded-xl hover:opacity-90 transition-opacity duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? (
-                <div className="flex items-center justify-center space-x-2">
-                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  <span>创建中...</span>
-                </div>
+            <div className="pt-4">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                type="submit"
+                disabled={isLoading}
+                className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-medium rounded-xl hover:opacity-90 transition-opacity duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isLoading ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>创建中...</span>
+                  </div>
               ) : '发起收款请求'}
-            </motion.button>
+              </motion.button>
+            </div>
           </div>
-        </div>
-      </motion.form>
+        </motion.form>
     </div>
   );
 } 

@@ -500,7 +500,7 @@ export class DatabaseService {
     }
   }
 
-  async updatePaymentRequestStatus(id: string, status: 'paid' | 'cancelled' | 'expired', payer_address?: string): Promise<{ error: Error | null }> {
+  async updatePaymentRequestStatus(id: string, status: 'paid' | 'cancelled' | 'expired', payer_address?: string | undefined): Promise<{ error: Error | null }> {
     try {
       const updateData: any = {
         status,
@@ -540,7 +540,7 @@ export class DatabaseService {
 
         if (expiredRequests) {
           for (const request of expiredRequests) {
-            await this.updatePaymentRequestStatus(request.id, 'expired');
+            await this.updatePaymentRequestStatus(request.id, 'expired', undefined);
           }
         }
       } catch (error) {
@@ -550,7 +550,7 @@ export class DatabaseService {
   }
 
   async saveInvoiceWithSignature(
-    invoice: Omit<InvoiceRecord, 'id' | 'createdAt'>,
+    invoice: Omit<InvoiceRecord, 'id' | 'createdAt'> & { requestId?: string },
     signature: string,
     signedMessage: string,
     signerAddress: string
@@ -595,7 +595,8 @@ export class DatabaseService {
           status: invoice.status || 'paid',
           payment_link: invoice.paymentLink,
           due_date: invoice.dueDate,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
+          request_id: invoice.requestId
         })
         .select()
         .single();
@@ -607,6 +608,82 @@ export class DatabaseService {
     } catch (error) {
       console.error('Error saving invoice:', error);
       throw error;
+    }
+  }
+
+  async updateInvoiceAfterPayment(data: {
+    requestId: string;
+    status: 'paid';
+    transactionHash: string;
+    blockNumber: number;
+  }): Promise<void> {
+    try {
+      // 获取关联的发票
+      const { data: invoice, error: fetchError } = await supabaseClient
+        .from('invoices')
+        .select('*, payment_requests(*)')
+        .eq('request_id', data.requestId)
+        .single();
+
+      if (fetchError) throw fetchError;
+      if (!invoice) throw new Error('找不到关联的发票');
+
+      // 更新发票信息
+      const { error: updateError } = await supabaseClient
+        .from('invoices')
+        .update({
+          status: data.status,
+          transaction_hash: data.transactionHash,
+          block_number: data.blockNumber,
+          updated_at: new Date().toISOString(),
+          request_id: data.requestId
+        })
+        .eq('document_id', invoice.document_id);
+
+      if (updateError) throw updateError;
+
+      // 再次验证更新是否成功
+      const { data: verifyData, error: verifyError } = await supabaseClient
+        .from('invoices')
+        .select()
+        .eq('document_id', invoice.document_id)
+        .single();
+
+      if (verifyError || !verifyData || verifyData.status !== 'paid') {
+        console.error('发票状态更新验证失败:', { verifyError, verifyData });
+        throw new Error('发票状态更新验证失败');
+      }
+
+      // 记录成功的更新
+      console.log('发票更新成功:', {
+        documentId: invoice.document_id,
+        status: data.status,
+        transactionHash: data.transactionHash
+      });
+    } catch (error) {
+      console.error('Error updating invoice after payment:', error);
+      throw error;
+    }
+  }
+
+  async getInvoiceByRequestId(requestId: string): Promise<{ data: InvoiceRecord | null; error: Error | null }> {
+    try {
+      const { data, error } = await supabaseClient
+        .from('invoices')
+        .select()
+        .eq('request_id', requestId)
+        .single();
+
+      if (error) throw error;
+      if (!data) return { data: null, error: null };
+
+      return { 
+        data: this.mapDbInvoiceToInvoiceRecord(data),
+        error: null 
+      };
+    } catch (error) {
+      console.error('Error getting invoice by request ID:', error);
+      return { data: null, error: error as Error };
     }
   }
 
@@ -639,7 +716,7 @@ export class DatabaseService {
   }
 }
 
-export const db = new DatabaseService();
+export const db = new DatabaseService(); 
 
 // 启动过期检查
 db.startExpirationCheck(); 

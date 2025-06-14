@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useAccount, useReadContract, useChainId, usePublicClient, useWriteContract, useConnect, useWalletClient } from 'wagmi';
-import { readContract } from '@wagmi/core';
 import { injected } from 'wagmi/connectors';
 import { db } from '../../../services/db';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -202,6 +201,17 @@ export default function PaymentRequestPage() {
   // 代币转账
   const { writeContractAsync } = useWriteContract();
 
+  // 获取代币精度
+  const { data: decimalsResult } = useReadContract({
+    address: paymentRequest?.token_address as Address,
+    abi: ERC20_ABI,
+    functionName: 'decimals',
+    chainId: Number(paymentRequest?.chain_id),
+    query: {
+      enabled: !!paymentRequest?.token_address
+    }
+  });
+
   // 处理复制
   const handleCopy = async (type: 'address' | 'amount', value: string) => {
     try {
@@ -215,96 +225,49 @@ export default function PaymentRequestPage() {
 
   // 处理支付
   const handlePay = async () => {
+    if (!paymentRequest || !address || !publicClient || !walletClient || !decimalsResult) return;
+
+    setIsPending(true);
+    setError(null);
+
     try {
-      setError(null);
-      setIsPending(true);
+      // 获取代币合约实例
+      const tokenContract = {
+        address: paymentRequest.token_address as Address,
+        abi: ERC20_ABI,
+      };
 
-      if (!paymentRequest) {
-        throw new Error('支付信息不完整');
-      }
+      // 转换金额为代币精度
+      const decimals = Number(decimalsResult);
+      const amount = parseUnits(paymentRequest.amount, decimals);
 
-      // 连接钱包
-      await connect({ connector: injected() });
-      
-      if (!walletClient) {
-        throw new Error('无法获取钱包客户端');
-      }
+      // 发送交易
+      const hash = await walletClient.writeContract({
+        ...tokenContract,
+        functionName: 'transfer',
+        args: [paymentRequest.requester_address as Address, amount],
+      });
 
-      // 检查是否使用收款地址进行支付
-      if (address?.toLowerCase() === paymentRequest.requester_address.toLowerCase()) {
-        throw new Error('不能使用收款地址进行支付');
-      }
+      // 等待交易收据
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
 
-      const isNativeToken = paymentRequest.token_address === 'native';
-      const token = isNativeToken ? null : SUPPORTED_TOKENS.find(t => t.address.toLowerCase() === paymentRequest.token_address.toLowerCase());
-      
-      if (isNativeToken) {
-        // 发送原生代币 (ETH/MATIC)
-        const amount = parseUnits(paymentRequest.amount, 18); // 原生代币使用18位小数
-        const hash = await walletClient.sendTransaction({
-          to: paymentRequest.requester_address as Address,
-          value: amount,
+      // 如果交易成功
+      if (receipt.status === 'success') {
+        // 更新支付请求状态
+        await db.updatePaymentRequestStatus(paymentRequest.id, 'paid', address);
+
+        // 更新关联的发票
+        await db.updateInvoiceAfterPayment({
+          requestId: paymentRequest.id,
+          status: 'paid',
+          transactionHash: hash,
+          blockNumber: Number(receipt.blockNumber),
         });
 
-        // 等待交易确认
-        await publicClient?.waitForTransactionReceipt({ hash });
-
-        // 更新支付状态
-        await db.updatePaymentRequestStatus(paymentRequest.id, 'paid', address);
-        
-        // 更新本地状态
-        setPaymentRequest(prev => prev ? { 
-          ...prev, 
-          status: 'paid',
-          payer_address: address 
-        } : null);
-        
-        // 显示成功对话框
         setSuccessTxHash(hash);
         setShowSuccessModal(true);
       } else {
-        // 如果是 ERC20 代币
-        if (!token) {
-          throw new Error('不支持的代币');
-        }
-
-        try {
-          // 准备支付参数
-          const amount = parseUnits(paymentRequest.amount, token.decimals);
-
-          // 直接发起转账，使用正确的代币合约地址
-          const tx = await writeContractAsync({
-            address: paymentRequest.token_address as Address,
-            abi: ERC20_ABI,
-            functionName: 'transfer',
-            args: [paymentRequest.requester_address as Address, amount],
-            account: address as Address
-          });
-
-          // 等待交易确认
-          await publicClient?.waitForTransactionReceipt({ hash: tx });
-
-          // 更新支付状态
-          await db.updatePaymentRequestStatus(paymentRequest.id, 'paid', address);
-          
-          // 更新本地状态
-          setPaymentRequest(prev => prev ? { 
-            ...prev, 
-            status: 'paid',
-            payer_address: address 
-          } : null);
-          
-          // 显示成功对话框
-          setSuccessTxHash(tx);
-          setShowSuccessModal(true);
-        } catch (err: any) {
-          console.error('Error:', err);
-          if (err.message?.includes('User rejected the request')) {
-            // 用户拒绝了请求，不显示错误
-            return;
-          }
-          throw err;
-        }
+        throw new Error('交易失败');
       }
     } catch (err) {
       console.error('Payment error:', err);
@@ -314,13 +277,10 @@ export default function PaymentRequestPage() {
     }
   };
 
-  // 处理成功对话框关闭
   const handleSuccessModalClose = () => {
     setShowSuccessModal(false);
-    // 确保状态已更新
-    if (paymentRequest) {
-      setPaymentRequest({ ...paymentRequest, status: 'paid' });
-    }
+    // 刷新页面以显示最新状态
+    window.location.reload();
   };
 
   // 生成支付二维码内容
@@ -623,7 +583,7 @@ export default function PaymentRequestPage() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={handlePay}
-                disabled={isPending || paymentRequest?.status !== 'pending' || isRequesterAddress}
+                disabled={isPending || paymentRequest?.status !== 'pending'}
                 className="w-full px-6 py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-medium rounded-xl hover:opacity-90 transition-opacity duration-200 disabled:opacity-50 disabled:cursor-not-allowed mt-6"
               >
                 {isPending ? (
@@ -638,8 +598,6 @@ export default function PaymentRequestPage() {
                   '已支付'
                 ) : paymentRequest?.status === 'expired' ? (
                   '已过期'
-                ) : isRequesterAddress ? (
-                  '不能使用收款地址支付'
                 ) : (
                   '支付'
                 )}

@@ -120,8 +120,12 @@ This signature will be stored on-chain as proof of invoice authenticity.`;
       const year = now.getFullYear();
       const month = String(now.getMonth() + 1).padStart(2, '0');
       const day = String(now.getDate()).padStart(2, '0');
-      const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-      const documentId = `INC-${year}${month}${day}-${random}`;
+      const hour = String(now.getHours()).padStart(2, '0');
+      const minute = String(now.getMinutes()).padStart(2, '0');
+      const second = String(now.getSeconds()).padStart(2, '0');
+      const ms = String(now.getMilliseconds()).padStart(3, '0');
+      const random = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const documentId = `INC-${year}${month}${day}-${hour}${minute}${second}${ms}-${random}`;
 
       // 先进行签名
       const message = generateSignatureMessage({
@@ -181,6 +185,7 @@ This signature will be stored on-chain as proof of invoice authenticity.`;
         paymentLink: savedPaymentRequest.payment_link,
         dueDate: formData.dueDate,
         updatedAt: new Date().toISOString(),
+        requestId: savedPaymentRequest.id
       };
 
       // 保存发票和签名信息
