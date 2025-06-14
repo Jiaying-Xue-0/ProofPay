@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAccount, useSignMessage } from 'wagmi';
 import { ChainOption, TokenOption, SUPPORTED_CHAINS, SUPPORTED_TOKENS } from '../types/payment';
 import { useWalletStore } from '../store/walletStore';
@@ -61,6 +61,16 @@ export function PrePaymentInvoiceForm() {
 
   const { signMessageAsync, status: signatureStatus } = useSignMessage();
   const isSignatureLoading = signatureStatus === 'pending';
+  
+  // 添加ref用于日期输入框
+  const dateInputRef = useRef<HTMLInputElement>(null);
+
+  // 处理点击日期输入框区域
+  const handleDateInputClick = () => {
+    if (dateInputRef.current) {
+      dateInputRef.current.showPicker?.();
+    }
+  };
 
   const generateSignatureMessage = (data: {
     documentId: string;
@@ -416,11 +426,26 @@ This signature will be stored on-chain as proof of invoice authenticity.`;
             <label className="block text-sm font-medium text-gray-700">金额</label>
             <motion.div whileHover={{ scale: 1.02 }} className="relative">
               <input
-                type="number"
+                type="text"
                 value={formData.amount}
-                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  // 只允许数字和小数点，并确保不能输入负数
+                  if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                    setFormData({ ...formData, amount: value });
+                  }
+                }}
+                onBlur={(e) => {
+                  // 失去焦点时格式化数字
+                  const value = e.target.value;
+                  if (value && !isNaN(Number(value))) {
+                    const num = Math.abs(Number(value)); // 确保是正数
+                    setFormData({ ...formData, amount: num.toString() });
+                  }
+                }}
                 placeholder="0.00"
-                step="any"
+                inputMode="decimal"
+                pattern="[0-9]*\.?[0-9]*"
                 className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-200"
               />
               {selectedToken && (
@@ -484,12 +509,19 @@ This signature will be stored on-chain as proof of invoice authenticity.`;
 
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700">付款截止日期</label>
-            <motion.div whileHover={{ scale: 1.02 }}>
+            <motion.div 
+              whileHover={{ scale: 1.02 }} 
+              className="relative cursor-pointer"
+              onClick={handleDateInputClick}
+            >
               <input
+                ref={dateInputRef}
                 type="datetime-local"
                 value={formData.dueDate}
                 onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-200"
+                min={new Date().toISOString().slice(0, 16)}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-200 cursor-pointer"
+                placeholder="选择付款截止日期和时间"
               />
             </motion.div>
           </div>

@@ -427,11 +427,26 @@ export function PaymentRequestForm({ onSubmit }: PaymentRequestFormProps) {
               <label className="block text-sm font-medium text-gray-700">金额</label>
               <motion.div whileHover={{ scale: 1.02 }} className="relative">
                 <input
-                  type="number"
-                value={formData.amount}
-                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                  type="text"
+                  value={formData.amount}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    // 只允许数字和小数点，并确保不能输入负数
+                    if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                      setFormData({ ...formData, amount: value });
+                    }
+                  }}
+                  onBlur={(e) => {
+                    // 失去焦点时格式化数字
+                    const value = e.target.value;
+                    if (value && !isNaN(Number(value))) {
+                      const num = Math.abs(Number(value)); // 确保是正数
+                      setFormData({ ...formData, amount: num.toString() });
+                    }
+                  }}
                   placeholder="0.00"
-                  step="any"
+                  inputMode="decimal"
+                  pattern="[0-9]*\.?[0-9]*"
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-200"
                 />
                 {selectedToken && (
@@ -505,11 +520,11 @@ export function PaymentRequestForm({ onSubmit }: PaymentRequestFormProps) {
 
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700">过期时间</label>
-            <motion.div whileHover={{ scale: 1.02 }}>
+            <motion.div whileHover={{ scale: 1.02 }} className="relative">
               <select
                 value={formData.expiresIn}
                 onChange={(e) => setFormData({ ...formData, expiresIn: e.target.value })}
-                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-200"
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-200 appearance-none cursor-pointer pr-12"
               >
                 <option value="1">1小时</option>
                 <option value="2">2小时</option>
@@ -521,6 +536,11 @@ export function PaymentRequestForm({ onSubmit }: PaymentRequestFormProps) {
                 <option value="72">72小时</option>
                 <option value="168">7天</option>
               </select>
+              <div className="absolute inset-y-0 right-0 flex items-center px-4 pointer-events-none">
+                <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
             </motion.div>
           </div>
 
