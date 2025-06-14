@@ -17,6 +17,7 @@ interface FilterState {
   tokenSymbol: string;
   startDate: string;
   endDate: string;
+  paymentStatus: '' | 'paid' | 'unpaid' | 'expired' | 'cancelled';
 }
 
 type ActiveTab = 'invoices' | 'payment_requests' | 'payment_request_form';
@@ -43,6 +44,7 @@ export function InvoiceHistory() {
     tokenSymbol: '',
     startDate: '',
     endDate: '',
+    paymentStatus: '',
   });
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceRecord | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -167,6 +169,49 @@ export function InvoiceHistory() {
           className={activeTab === 'invoices' ? 'block' : 'hidden'}
         >
           <div className="mb-8 bg-gradient-to-br from-indigo-50 via-purple-50 to-blue-50 rounded-2xl p-6 shadow-lg backdrop-blur-lg border border-white/20">
+            {/* 支付状态筛选器 - 占据整个宽度 */}
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                <div className="flex items-center space-x-2">
+                  <svg className="w-4 h-4 text-indigo-500" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  <span>支付状态</span>
+                </div>
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { value: '', label: '全部', icon: '∅' },
+                  { value: 'paid', label: '已支付', icon: '✓' },
+                  { value: 'unpaid', label: '未支付', icon: '⏳' },
+                  { value: 'expired', label: '已过期', icon: '⚠' },
+                  { value: 'cancelled', label: '已取消', icon: '✗' },
+                ].map((status) => (
+                  <motion.button
+                    key={status.value}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => setFilter({ ...filter, paymentStatus: status.value as FilterState['paymentStatus'] })}
+                    className={`flex items-center space-x-2 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 backdrop-blur-sm border ${
+                      filter.paymentStatus === status.value
+                        ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white border-indigo-300 shadow-lg shadow-indigo-500/25'
+                        : 'bg-white/70 text-gray-700 border-white/50 hover:bg-white hover:border-indigo-200 hover:text-indigo-600'
+                    }`}
+                  >
+                    <span className="text-lg leading-none">{status.icon}</span>
+                    <span>{status.label}</span>
+                    {filter.paymentStatus === status.value && (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        className="w-2 h-2 bg-white rounded-full"
+                      />
+                    )}
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+            
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
               <div className="relative">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -263,6 +308,7 @@ export function InvoiceHistory() {
                   tokenSymbol: '',
                   startDate: '',
                   endDate: '',
+                  paymentStatus: '',
                 })}
                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-xl text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200"
               >
@@ -321,6 +367,24 @@ export function InvoiceHistory() {
                           </svg>
                           <span>{invoice.type === 'income' ? '收入' : '支出'}</span>
                         </div>
+                        {/* 支付状态标签 */}
+                        {(() => {
+                          const status = invoice.status || (invoice.invoiceType === 'pre_payment_invoice' ? 'unpaid' : 'paid');
+                          const statusConfig = {
+                            paid: { label: '已支付', color: 'bg-gradient-to-r from-green-100 to-emerald-100 text-emerald-700', icon: '✓' },
+                            unpaid: { label: '未支付', color: 'bg-gradient-to-r from-amber-100 to-yellow-100 text-amber-700', icon: '⏳' },
+                            expired: { label: '已过期', color: 'bg-gradient-to-r from-red-100 to-rose-100 text-red-700', icon: '⚠' },
+                            cancelled: { label: '已取消', color: 'bg-gradient-to-r from-gray-100 to-slate-100 text-gray-700', icon: '✗' }
+                          };
+                          const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.paid;
+                          
+                          return (
+                            <div className={`flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-medium ${config.color}`}>
+                              <span className="text-xs leading-none">{config.icon}</span>
+                              <span>{config.label}</span>
+                            </div>
+                          );
+                        })()}
                         <h3 className="text-sm font-medium text-gray-900">{invoice.customerName}</h3>
                         <span className="text-sm text-gray-500">
                           {format(invoice.date, 'yyyy-MM-dd HH:mm')}

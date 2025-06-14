@@ -9,6 +9,7 @@ interface FilterState {
   tokenSymbol: string;
   startDate: string;
   endDate: string;
+  paymentStatus: '' | 'paid' | 'unpaid' | 'expired' | 'cancelled';
 }
 
 export function useInvoices(filter: FilterState) {
@@ -41,7 +42,8 @@ export function useInvoices(filter: FilterState) {
       filter.type,
       filter.tokenSymbol,
       filter.startDate,
-      filter.endDate
+      filter.endDate,
+      filter.paymentStatus
     ];
   };
 
@@ -93,6 +95,16 @@ export function useInvoices(filter: FilterState) {
       if (filter.endDate) {
         const endDate = new Date(filter.endDate).getTime() + 24 * 60 * 60 * 1000; // 包含结束日期当天
         if (invoice.date > endDate) {
+          matches = false;
+        }
+      }
+
+      // 支付状态筛选
+      if (filter.paymentStatus) {
+        // 如果发票没有状态字段，根据发票类型判断默认状态
+        const invoiceStatus = invoice.status || (invoice.invoiceType === 'pre_payment_invoice' ? 'unpaid' : 'paid');
+        
+        if (filter.paymentStatus !== invoiceStatus) {
           matches = false;
         }
       }
