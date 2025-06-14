@@ -14,6 +14,7 @@ import { zhCN } from 'date-fns/locale';
 import { parseUnits, formatUnits } from 'viem';
 import type { Address, Hash } from 'viem';
 import { watchAsset } from 'viem/actions';
+import { generatePDF } from '../../../utils/pdfGenerator';
 
 interface PaymentRequest {
   id: string;
@@ -171,6 +172,22 @@ function PaymentSuccessModal({ isOpen, onClose, txHash, amount, tokenSymbol }: P
   );
 }
 
+function getExplorerDomain(chainId: number): string {
+  switch (chainId) {
+    case 1: return 'etherscan.io';
+    case 137: return 'polygonscan.com';
+    case 56: return 'bscscan.com';
+    case 42161: return 'arbiscan.io';
+    case 10: return 'optimistic.etherscan.io';
+    case 43114: return 'snowtrace.io';
+    case 250: return 'ftmscan.com';
+    case 80001: return 'mumbai.polygonscan.com';
+    case 5: return 'goerli.etherscan.io';
+    case 97: return 'testnet.bscscan.com';
+    default: return 'etherscan.io';
+  }
+} 
+
 export default function PaymentRequestPage() {
   const params = useParams();
   const { address, isConnected } = useAccount();
@@ -265,6 +282,44 @@ export default function PaymentRequestPage() {
         });
 
         setSuccessTxHash(hash);
+        try {
+          if (!paymentRequest) return;
+          const invoice = await db.getInvoiceByRequestId(paymentRequest.id);
+          if (!invoice?.data) return;
+          
+          const doc = await generatePDF({
+            type: 'income',
+            documentId: invoice.data.documentId,
+            date: new Date(invoice.data.date).toISOString(),
+            customerName: invoice.data.customerName,
+            customerAddress: invoice.data.customerAddress,
+            from: invoice.data.from,
+            to: invoice.data.to,
+            amount: invoice.data.amount,
+            tokenSymbol: invoice.data.tokenSymbol,
+            decimals: invoice.data.decimals,
+            description: invoice.data.description,
+            tags: invoice.data.tags,
+            additionalNotes: invoice.data.additionalNotes,
+            transactionHash: invoice.data.transactionHash,
+            blockNumber: Number(receipt.blockNumber),
+            transactionStatus: 'success',
+            issuer: 'ProofPay',
+            chainId: Number(paymentRequest.chain_id),
+            signatureStatus: invoice.data.signatureStatus,
+            signedBy: invoice.data.signedBy,
+            invoiceType: 'pre_payment_invoice',
+            status: 'paid',
+            paymentLink: paymentRequest.payment_link,
+            dueDate: paymentRequest.expires_at,
+            explorerLink: `https://${getExplorerDomain(Number(paymentRequest.chain_id))}/tx/${invoice.data.transactionHash}`
+          });
+    
+          const fileName = `proofpay-invoice-${invoice.data.documentId}-paid.pdf`;
+          doc.save(fileName);
+        } catch (err) {
+          console.error('Failed to download PDF:', err);
+        }
         setShowSuccessModal(true);
       } else {
         throw new Error('交易失败');
