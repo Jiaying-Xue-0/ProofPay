@@ -9,8 +9,11 @@ import { ethers } from 'ethers';
 import Link from 'next/link';
 
 // 格式化金额的辅助函数
-const formatAmount = (amount: string, decimals: number): string => {
+const formatAmount = (amount: string, decimals: number, invoiceType?: string): string => {
   try {
+    if (invoiceType === 'pre_payment_invoice') {
+      return amount;
+    }
     // 移除可能存在的小数部分，确保是整数字符串
     const [integerPart] = amount.split('.');
     const cleanAmount = integerPart.replace(/[^\d]/g, '');
@@ -19,6 +22,16 @@ const formatAmount = (amount: string, decimals: number): string => {
     console.error('Error formatting amount:', error);
     return amount;
   }
+};
+
+// 获取区块链浏览器链接
+const getExplorerUrl = (chainId: number, txHash: string): string => {
+  const baseUrl = chainId === 1 ? 'etherscan.io' :
+                 chainId === 5 ? 'goerli.etherscan.io' :
+                 chainId === 137 ? 'polygonscan.com' :
+                 chainId === 80001 ? 'mumbai.polygonscan.com' :
+                 'etherscan.io';
+  return `https://${baseUrl}/tx/${txHash}`;
 };
 
 export default function VerifyPage({
@@ -37,9 +50,11 @@ export default function VerifyPage({
         const doc = await db.getInvoice(params.id);
         if (doc) {
           setDocument(doc);
-          // Get blockchain transaction details
-          const txDetails = await blockchain.getTransactionDetails(doc.transactionHash);
-          setBlockchainData(txDetails);
+          // 只有在非预付款发票或已支付的预付款发票时获取区块链信息
+          if (doc.invoiceType !== 'pre_payment_invoice' || doc.status === 'paid') {
+            const txDetails = await blockchain.getTransactionDetails(doc.transactionHash);
+            setBlockchainData(txDetails);
+          }
         }
       } catch (error) {
         console.error('Error loading document:', error);
@@ -95,11 +110,26 @@ export default function VerifyPage({
   }
 
   const formatDate = (timestamp: number) => {
-    return new Date(timestamp).toLocaleString();
+    return new Date(timestamp).toLocaleString('en-US', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
-  const getExplorerUrl = () => {
-    return blockchain.getExplorerUrl(document.transactionHash);
+  const getPaymentStatusColor = (status: string) => {
+    switch (status) {
+      case 'paid':
+        return 'bg-green-100 text-green-800';
+      case 'unpaid':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'cancelled':
+        return 'bg-red-100 text-red-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
   };
 
   return (
@@ -126,6 +156,24 @@ export default function VerifyPage({
                 <p className="text-sm font-medium text-gray-500">Issue Date</p>
                 <p className="mt-1 text-sm text-gray-900">{formatDate(document.date)}</p>
               </div>
+              <div>
+                <p className="text-sm font-medium text-gray-500">Payment Status</p>
+                <span className={`mt-1 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPaymentStatusColor(document.status)}`}>
+                  {document.status.toUpperCase()}
+                </span>
+              </div>
+              {document.invoiceType === 'pre_payment_invoice' && document.dueDate && (
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Due Date</p>
+                  <p className="mt-1 text-sm text-gray-900">{new Date(document.dueDate).toLocaleString('en-US', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -153,7 +201,7 @@ export default function VerifyPage({
               <div>
                 <p className="text-sm font-medium text-gray-500">Amount</p>
                 <p className="mt-1 text-lg font-medium text-gray-900">
-                  {formatAmount(document.amount, document.decimals)} {document.tokenSymbol}
+                  {formatAmount(document.amount, document.decimals, document.invoiceType)} {document.tokenSymbol}
                 </p>
               </div>
               <div>
@@ -184,57 +232,82 @@ export default function VerifyPage({
             </div>
           </div>
 
-          {/* Blockchain Verification */}
-          <div>
-            <h2 className="text-lg font-medium text-gray-900 mb-4">Blockchain Verification</h2>
-            <div className="bg-gray-50 rounded-lg p-4 space-y-4">
-              <div>
-                <p className="text-sm font-medium text-gray-500">From Wallet</p>
-                <p className="mt-1 text-sm text-gray-900 break-all font-mono">{document.from}</p>
+          {/* Payment Link for unpaid pre-payment invoices */}
+          {document.invoiceType === 'pre_payment_invoice' && document.status === 'unpaid' && document.paymentLink && (
+            <div>
+              <h2 className="text-lg font-medium text-gray-900 mb-4">Payment Information</h2>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <p className="text-sm font-medium text-gray-500 mb-2">Payment Link</p>
+                <a
+                  href={document.paymentLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center text-sm text-indigo-600 hover:text-indigo-500"
+                >
+                  Click here to make payment
+                  <svg className="ml-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </a>
               </div>
-              <div>
-                <p className="text-sm font-medium text-gray-500">To Wallet</p>
-                <p className="mt-1 text-sm text-gray-900 break-all font-mono">{document.to}</p>
-              </div>
-              {blockchainData && (
-                <>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Block Number</p>
-                    <p className="mt-1 text-sm text-gray-900">{blockchainData.blockNumber}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">Transaction Status</p>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      blockchainData.status === 'success' 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-red-100 text-red-800'
-                    }`}>
-                      {blockchainData.status.toUpperCase()}
-                    </span>
-                  </div>
-                </>
-              )}
-              <div>
-                <p className="text-sm font-medium text-gray-500">Transaction Time</p>
-                <p className="mt-1 text-sm text-gray-900">{formatDate(document.date)}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-500">Transaction Hash</p>
-                <p className="mt-1 text-sm text-gray-900 break-all font-mono">{document.transactionHash}</p>
-              </div>
-              <a
-                href={getExplorerUrl()}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center text-sm text-indigo-600 hover:text-indigo-500"
-              >
-                View on Blockchain Explorer
-                <svg className="ml-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </a>
             </div>
-          </div>
+          )}
+
+          {/* Blockchain Verification - Only show for post-payment invoices or paid pre-payment invoices */}
+          {(document.invoiceType !== 'pre_payment_invoice' || document.status === 'paid') && (
+            <div>
+              <h2 className="text-lg font-medium text-gray-900 mb-4">Blockchain Verification</h2>
+              <div className="bg-gray-50 rounded-lg p-4 space-y-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">From Wallet</p>
+                  <p className="mt-1 text-sm text-gray-900 break-all font-mono">{document.from}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500">To Wallet</p>
+                  <p className="mt-1 text-sm text-gray-900 break-all font-mono">{document.to}</p>
+                </div>
+                {blockchainData && (
+                  <>
+                    <div>
+                      <p className="text-sm font-medium text-gray-500">Block Number</p>
+                      <p className="mt-1 text-sm text-gray-900">{blockchainData.blockNumber}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-500">Transaction Status</p>
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        blockchainData.status === 'success' 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {blockchainData.status.toUpperCase()}
+                      </span>
+                    </div>
+                  </>
+                )}
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Transaction Time</p>
+                  <p className="mt-1 text-sm text-gray-900">{formatDate(document.date)}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Transaction Hash</p>
+                  <p className="mt-1 text-sm text-gray-900 break-all font-mono">{document.transactionHash}</p>
+                </div>
+                {blockchainData && (
+                  <a
+                    href={getExplorerUrl(blockchainData.chainId, document.transactionHash)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center text-sm text-indigo-600 hover:text-indigo-500"
+                  >
+                    View on Blockchain Explorer
+                    <svg className="ml-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Signature Status */}
           <div>
