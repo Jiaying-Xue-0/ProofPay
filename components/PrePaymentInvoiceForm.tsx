@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAccount } from 'wagmi';
+import { useAccount, useSignMessage } from 'wagmi';
 import { ChainOption, TokenOption, SUPPORTED_CHAINS, SUPPORTED_TOKENS } from '../types/payment';
 import { useWalletStore } from '../store/walletStore';
 import { db } from '../services/db';
 import { motion } from 'framer-motion';
 import { ethers } from 'ethers';
+import { SignatureStatus } from '../types/storage';
+import { generatePDF } from '../utils/pdfGenerator';
 
 const PREDEFINED_TAGS = [
   'Consulting',
@@ -28,6 +30,14 @@ interface FormData {
   receiverAddress: string;
 }
 
+interface InvoiceState {
+  id: string;
+  payment_link: string;
+  amount: string;
+  token_symbol: string;
+  signatureStatus: SignatureStatus;
+}
+
 export function PrePaymentInvoiceForm() {
   const { address } = useAccount();
   const { currentConnectedWallet } = useWalletStore();
@@ -47,21 +57,30 @@ export function PrePaymentInvoiceForm() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [invoice, setInvoice] = useState<{
-    id: string;
-    payment_link: string;
-    amount: string;
-    token_symbol: string;
-  } | null>(null);
+  const [invoice, setInvoice] = useState<InvoiceState | null>(null);
 
-  useEffect(() => {
-    if (currentConnectedWallet) {
-      setFormData(prev => ({
-        ...prev,
-        receiverAddress: currentConnectedWallet
-      }));
-    }
-  }, [currentConnectedWallet]);
+  const { signMessageAsync, status: signatureStatus } = useSignMessage();
+  const isSignatureLoading = signatureStatus === 'pending';
+
+  const generateSignatureMessage = (data: {
+    documentId: string;
+    amount: string;
+    tokenSymbol: string;
+    receiverAddress: string;
+  }) => {
+    return `Pre-Payment Invoice Signature Request
+
+I hereby confirm that I am issuing a pre-payment invoice with the following details:
+
+Invoice ID: ${data.documentId}
+Amount: ${data.amount} ${data.tokenSymbol}
+Receiver Address: ${data.receiverAddress}
+Issue Date: ${new Date().toISOString()}
+
+By signing this message, I certify that I am the authorized issuer of this invoice and the information provided is accurate and true.
+
+This signature will be stored on-chain as proof of invoice authenticity.`;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -104,6 +123,16 @@ export function PrePaymentInvoiceForm() {
       const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
       const documentId = `INC-${year}${month}${day}-${random}`;
 
+      // 先进行签名
+      const message = generateSignatureMessage({
+        documentId,
+        amount: formData.amount,
+        tokenSymbol: selectedToken.symbol,
+        receiverAddress: formData.receiverAddress
+      });
+
+      const signature = await signMessageAsync({ message });
+
       // 创建支付请求
       const paymentRequest = {
         id: documentId,
@@ -130,23 +159,23 @@ export function PrePaymentInvoiceForm() {
         throw new Error('创建支付请求失败');
       }
 
-      // 创建发票
-      const invoice = {
+      // 创建发票（包含签名信息）
+      const invoiceData = {
         documentId,
         type: 'income' as const,
         date: Date.now(),
         customerName: formData.customerName,
         customerAddress: formData.customerAddress,
-        from: '', // 待支付方填写
-        to: formData.receiverAddress, // 收款地址
+        from: address,
+        to: formData.receiverAddress,
         amount: formData.amount,
         tokenSymbol: selectedToken.symbol,
         decimals: selectedToken.decimals,
         description: formData.description,
         tags: formData.tags,
         additionalNotes: formData.additionalNotes,
-        transactionHash: '', // 待支付完成后填写
-        signatureStatus: 'pending' as const,
+        transactionHash: '',
+        signatureStatus: 'signed' as const,
         invoiceType: 'pre_payment_invoice' as const,
         status: 'unpaid' as const,
         paymentLink: savedPaymentRequest.payment_link,
@@ -154,12 +183,54 @@ export function PrePaymentInvoiceForm() {
         updatedAt: new Date().toISOString(),
       };
 
-      await db.saveInvoice(invoice);
+      // 保存发票和签名信息
+      const savedInvoice = await db.saveInvoiceWithSignature(
+        invoiceData,
+        signature,
+        message,
+        address
+      );
+
+      // 生成并下载 PDF
+      const doc = await generatePDF({
+        type: 'income',
+        documentId,
+        date: new Date().toISOString(),
+        customerName: formData.customerName,
+        customerAddress: formData.customerAddress,
+        from: address,
+        to: formData.receiverAddress,
+        amount: formData.amount,
+        tokenSymbol: selectedToken.symbol,
+        decimals: selectedToken.decimals,
+        description: formData.description,
+        tags: formData.tags,
+        additionalNotes: formData.additionalNotes,
+        transactionHash: '',
+        blockNumber: 0,
+        transactionStatus: 'pending',
+        issuer: 'ProofPay',
+        chainId: Number(selectedChain.id),
+        signatureStatus: 'signed',
+        signedBy: address,
+        invoiceType: 'pre_payment_invoice',
+        status: 'unpaid',
+        paymentLink: savedPaymentRequest.payment_link,
+        dueDate: formData.dueDate,
+        explorerLink: ''
+      });
+
+      // 保存 PDF
+      const fileName = `proofpay-invoice-${documentId}.pdf`;
+      doc.save(fileName);
+      
+      // 更新状态
       setInvoice({
         id: documentId,
         payment_link: savedPaymentRequest.payment_link,
         amount: formData.amount,
         token_symbol: selectedToken.symbol,
+        signatureStatus: 'signed'
       });
       
       // 重置表单
@@ -179,6 +250,10 @@ export function PrePaymentInvoiceForm() {
     } catch (err) {
       console.error('Form submission error:', err);
       setError(err instanceof Error ? err.message : '提交失败，请重试');
+      setInvoice(prev => prev ? {
+        ...prev,
+        signatureStatus: 'mismatch'
+      } : null);
     } finally {
       setIsLoading(false);
     }
@@ -467,16 +542,16 @@ export function PrePaymentInvoiceForm() {
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || isSignatureLoading}
               className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-medium rounded-xl hover:opacity-90 transition-opacity duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLoading ? (
+              {isLoading || isSignatureLoading ? (
                 <div className="flex items-center justify-center space-x-2">
                   <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  <span>创建中...</span>
+                  <span>{isSignatureLoading ? '等待签名...' : '创建中...'}</span>
                 </div>
               ) : '开具发票'}
             </motion.button>

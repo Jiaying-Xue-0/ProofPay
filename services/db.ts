@@ -549,6 +549,67 @@ export class DatabaseService {
     }, 60 * 60 * 1000); // 1小时
   }
 
+  async saveInvoiceWithSignature(
+    invoice: Omit<InvoiceRecord, 'id' | 'createdAt'>,
+    signature: string,
+    signedMessage: string,
+    signerAddress: string
+  ): Promise<InvoiceRecord> {
+    try {
+      console.log('Saving invoice with signature:', { ...invoice, documentId: invoice.documentId });
+
+      // 获取钱包信息以确定正确的 wallet_address
+      const { data: wallet } = await supabaseClient
+        .from('wallets')
+        .select()
+        .eq('address', invoice.from.toLowerCase())
+        .maybeSingle();
+
+      // 如果是子钱包，使用父钱包地址作为 wallet_address
+      const walletAddress = wallet?.parent_wallet || invoice.from.toLowerCase();
+
+      const { data, error } = await supabaseClient
+        .from('invoices')
+        .insert({
+          document_id: invoice.documentId,
+          type: invoice.type,
+          date: invoice.date,
+          customer_name: invoice.customerName,
+          customer_address: invoice.customerAddress,
+          from_address: invoice.from.toLowerCase(),
+          to_address: invoice.to.toLowerCase(),
+          amount: invoice.amount,
+          token_symbol: invoice.tokenSymbol,
+          decimals: invoice.decimals,
+          description: invoice.description,
+          tags: invoice.tags,
+          additional_notes: invoice.additionalNotes,
+          transaction_hash: invoice.transactionHash,
+          signature_status: 'signed',
+          signature: signature,
+          signed_message: signedMessage,
+          signed_by: signerAddress.toLowerCase(),
+          wallet_address: walletAddress,
+          created_at: Date.now(),
+          invoice_type: invoice.invoiceType || 'post_payment_invoice',
+          status: invoice.status || 'paid',
+          payment_link: invoice.paymentLink,
+          due_date: invoice.dueDate,
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      if (!data) throw new Error('Failed to save invoice');
+
+      return this.mapDbInvoiceToInvoiceRecord(data);
+    } catch (error) {
+      console.error('Error saving invoice:', error);
+      throw error;
+    }
+  }
+
   private mapDbInvoiceToInvoiceRecord(dbInvoice: DbInvoice): InvoiceRecord {
     return {
       id: dbInvoice.id,
