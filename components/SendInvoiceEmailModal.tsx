@@ -43,7 +43,10 @@ export const SendInvoiceEmailModal: React.FC<SendInvoiceEmailModalProps> = ({ op
     setSending(true);
     try {
       // 生成PDF为arraybuffer
-      const doc = await generatePDF(invoice);
+      const doc = await generatePDF({
+        ...invoice,
+        date: invoice.date || new Date().toISOString(),
+      });
       const arrayBuffer = await doc.output('arraybuffer');
       // 邮件内容
       const html = `
