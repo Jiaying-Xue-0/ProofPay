@@ -11,6 +11,7 @@ import { useInvoices } from '../hooks/useInvoices';
 import { PaymentRequestList } from './PaymentRequestList';
 import { motion } from 'framer-motion';
 import { PaymentRequestForm } from './PaymentRequestForm';
+import { SendInvoiceEmailModal } from './SendInvoiceEmailModal';
 
 interface FilterState {
   type: '' | 'income' | 'expense';
@@ -54,6 +55,10 @@ export function InvoiceHistory() {
   const { currentConnectedWallet } = useWalletStore();
   const { address } = useAccount();
   const [activeTab, setActiveTab] = useState<ActiveTab>('invoices');
+  const [showSendEmail, setShowSendEmail] = useState(false);
+  const [emailInvoice, setEmailInvoice] = useState<InvoiceRecord | null>(null);
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
 
   const { invoices, error: fetchError, isLoading } = useInvoices(filter);
 
@@ -109,6 +114,17 @@ export function InvoiceHistory() {
   const handlePreview = (invoice: InvoiceRecord) => {
     setSelectedInvoice(invoice);
     setIsPreviewOpen(true);
+  };
+
+  // 邮件发送逻辑（后续实现）
+  const handleSendEmail = async (email: string, message: string) => {
+    setEmailLoading(true);
+    setEmailSent(false);
+    // TODO: 调用邮件服务发送邮件
+    setTimeout(() => {
+      setEmailLoading(false);
+      setEmailSent(true);
+    }, 1500);
   };
 
   return (
@@ -428,11 +444,11 @@ export function InvoiceHistory() {
                       <button
                         onClick={() => handleDownload(invoice)}
                         disabled={loadingStates[invoice.id]}
-                        className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg text-white bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm hover:shadow"
+                        className="inline-flex items-center px-3.5 py-1.5 text-xs font-medium rounded-lg text-white bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 bg-size-200 hover:bg-pos-100 shadow-sm hover:shadow-indigo-100 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed backdrop-blur-sm"
                       >
                         {loadingStates[invoice.id] ? (
                           <>
-                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <svg className="animate-spin -ml-1 mr-1 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
@@ -447,6 +463,15 @@ export function InvoiceHistory() {
                           </>
                         )}
                       </button>
+                      {invoice.invoiceType === 'pre_payment_invoice' && (invoice.status === 'unpaid' || !invoice.status) && (
+                        <button
+                          className="inline-flex items-center px-4 py-1.5 text-xs font-medium rounded-lg text-white bg-gradient-to-r from-purple-500 via-indigo-500 to-purple-500 bg-size-200 hover:bg-pos-100 shadow-sm hover:shadow-purple-100 transition-all duration-300 backdrop-blur-sm"
+                          onClick={() => { setEmailInvoice(invoice); setShowSendEmail(true); setEmailSent(false); }}
+                        >
+                          <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12H8m8 0a4 4 0 11-8 0 4 4 0 018 0zm0 0v4m0-4V8" /></svg>
+                          发送邮件
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -645,6 +670,25 @@ export function InvoiceHistory() {
           </Dialog.Panel>
         </div>
       </Dialog>
+
+      {/* 邮件弹窗 */}
+      <SendInvoiceEmailModal
+        open={showSendEmail && !!emailInvoice}
+        onClose={() => setShowSendEmail(false)}
+        invoice={emailInvoice}
+        onSend={handleSendEmail}
+        loading={emailLoading}
+        sent={emailSent}
+      />
+
+      <style jsx>{`
+        .bg-size-200 {
+          background-size: 200% 100%;
+        }
+        .hover\:bg-pos-100:hover {
+          background-position: 100% 0;
+        }
+      `}</style>
     </div>
   );
 } 

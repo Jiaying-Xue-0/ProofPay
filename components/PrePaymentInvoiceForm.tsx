@@ -9,6 +9,7 @@ import { motion } from 'framer-motion';
 import { ethers } from 'ethers';
 import { SignatureStatus } from '../types/storage';
 import { generatePDF } from '../utils/pdfGenerator';
+import { SendInvoiceEmailModal } from './SendInvoiceEmailModal';
 
 const PREDEFINED_TAGS = [
   'Consulting',
@@ -58,6 +59,8 @@ export function PrePaymentInvoiceForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [invoice, setInvoice] = useState<InvoiceState | null>(null);
+  const [showSendEmailModal, setShowSendEmailModal] = useState(false);
+  const [emailInvoiceData, setEmailInvoiceData] = useState<any>(null);
 
   const { signMessageAsync, status: signatureStatus } = useSignMessage();
   const isSignatureLoading = signatureStatus === 'pending';
@@ -248,6 +251,34 @@ This signature will be stored on-chain as proof of invoice authenticity.`;
         signatureStatus: 'signed'
       });
       
+      // 自动弹出邮件发送弹窗
+      setEmailInvoiceData({
+        documentId,
+        customerName: formData.customerName,
+        customerAddress: formData.customerAddress,
+        from: address,
+        to: formData.receiverAddress,
+        amount: formData.amount,
+        tokenSymbol: selectedToken.symbol,
+        decimals: selectedToken.decimals,
+        description: formData.description,
+        tags: formData.tags,
+        additionalNotes: formData.additionalNotes,
+        transactionHash: '',
+        blockNumber: 0,
+        transactionStatus: 'pending',
+        issuer: 'ProofPay',
+        chainId: Number(selectedChain.id),
+        signatureStatus: 'signed',
+        signedBy: address,
+        invoiceType: 'pre_payment_invoice',
+        status: 'unpaid',
+        paymentLink: savedPaymentRequest.payment_link,
+        dueDate: formData.dueDate,
+        explorerLink: ''
+      });
+      setShowSendEmailModal(true);
+      
       // 重置表单
       setFormData({
         amount: '',
@@ -301,6 +332,17 @@ This signature will be stored on-chain as proof of invoice authenticity.`;
           <p className="text-gray-600 text-lg mb-4">请先连接钱包</p>
         </motion.div>
       </div>
+    );
+  }
+
+  if (showSendEmailModal && emailInvoiceData) {
+    return (
+      <SendInvoiceEmailModal
+        open={showSendEmailModal}
+        onClose={() => setShowSendEmailModal(false)}
+        invoice={emailInvoiceData}
+        onSend={async () => {}}
+      />
     );
   }
 
