@@ -1,5 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { generatePDF } from '../utils/pdfGenerator';
+import { ReactMultiEmail, isEmail } from 'react-multi-email';
+import 'react-multi-email/dist/style.css';
 
 interface SendInvoiceEmailModalProps {
   open: boolean;
@@ -12,18 +15,110 @@ interface SendInvoiceEmailModalProps {
 
 export const SendInvoiceEmailModal: React.FC<SendInvoiceEmailModalProps> = ({ open, onClose, invoice, onSend, loading, sent }) => {
   if (!invoice) return null;
-  const [email, setEmail] = useState('');
+  const [emails, setEmails] = useState<string[]>([]);
   const [message, setMessage] = useState('');
   const [showPreview, setShowPreview] = useState(false);
   const [error, setError] = useState('');
+  const [sending, setSending] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  // 打开弹窗或切换invoice时重置所有状态
+  useEffect(() => {
+    if (open) {
+      setEmails([]);
+      setMessage('');
+      setError('');
+      setSuccess(false);
+      setSending(false);
+    }
+  }, [open, invoice]);
 
   const handleSend = async () => {
     setError('');
-    if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
-      setError('Please enter a valid email address.');
+    setSuccess(false);
+    if (!emails.length || !emails.every(email => isEmail(email))) {
+      setError('Please enter valid email address(es)');
       return;
     }
-    await onSend(email, message);
+    setSending(true);
+    try {
+      // 生成PDF为arraybuffer
+      const doc = await generatePDF(invoice);
+      const arrayBuffer = await doc.output('arraybuffer');
+      // 邮件内容
+      const html = `
+        <body style="background:#f7f8fa;padding:0;margin:0;">
+          <div style="max-width:640px;margin:32px auto;background:#fff;border-radius:18px;padding:0 0 32px 0;box-shadow:0 4px 24px #b2b6ff18;overflow:hidden;">
+            <!-- Header -->
+            <div style="text-align:center;padding:32px 0 10px 0;">
+              <img src='https://proof-pay.vercel.app/logo-proofpay-email.png' alt='ProofPay Logo' style='width:56px;height:56px;border-radius:14px;display:inline-block;background:#fff;' />
+              <div style="font-weight:800;font-size:1.2rem;background:linear-gradient(90deg,#6366f1,#a855f7);-webkit-background-clip:text;color:transparent;margin-top:10px;letter-spacing:1px;">ProofPay</div>
+            </div>
+            <div style="height:2px;width:92%;margin:0 auto 24px auto;background:linear-gradient(90deg,#6366f1,#a855f7);border-radius:2px;"></div>
+            <!-- Main Content -->
+            <div style="padding:0 32px;">
+              <h2 style="font-size:1.18rem;font-weight:800;color:#222;margin-bottom:18px;letter-spacing:0.5px;">You have a new on-chain payment request</h2>
+              <div style="border-radius:14px;background:linear-gradient(90deg,#f5f6ff 60%,#f3e8ff 100%);padding:20px 18px 12px 18px;margin-bottom:18px;">
+                <table style="width:100%;font-size:1.05rem;color:#222;border-collapse:collapse;">
+                  <tr>
+                    <td style="color:#888;padding:6px 0;">Amount</td>
+                    <td style="text-align:right;font-weight:700;color:#7c3aed;">${invoice.amount} ${invoice.tokenSymbol}</td>
+                  </tr>
+                  <tr>
+                    <td style="color:#888;padding:6px 0;">Due Date</td>
+                    <td style="text-align:right;">${invoice.dueDate}</td>
+                  </tr>
+                  <tr>
+                    <td style="color:#888;padding:6px 0;">Recipient</td>
+                    <td style="text-align:right;color:#6366f1;font-weight:600;">${invoice.customerName || '-'}</td>
+                  </tr>
+                  <tr>
+                    <td style="color:#888;padding:6px 0;">Recipient Address</td>
+                    <td style="text-align:right;color:#6366f1;word-break:break-all;font-size:0.97rem;">
+                      ${invoice.to || invoice.receiverAddress || '-'}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="color:#888;padding:6px 0;">Description</td>
+                    <td style="text-align:right;color:#444;">${invoice.description}</td>
+                  </tr>
+                </table>
+                ${message ? `<div style='margin: 12px 0 0 0; color: #6366f1; font-style: italic; font-size: 1rem;'><b>Message:</b> ${message}</div>` : ''}
+              </div>
+              <a href="${invoice.paymentLink}" style="display:block;width:100%;max-width:400px;margin:32px auto 0 auto;padding:16px 0;background:linear-gradient(90deg,#6366f1,#a855f7);color:#fff;text-align:center;font-weight:800;font-size:1.1rem;border-radius:14px;text-decoration:none;letter-spacing:0.5px;box-shadow:0 2px 12px #a855f733;">Pay Invoice</a>
+            </div>
+            <!-- Footer -->
+            <div style="margin-top:32px;padding:0 32px;text-align:center;color:#aaa;font-size:0.97rem;">
+              Need help? <a href="mailto:support@proofpay.com" style="color:#6366f1;text-decoration:none;">Contact Support</a><br/>
+              &copy; ${new Date().getFullYear()} ProofPay. All rights reserved.
+            </div>
+          </div>
+          <style>@media (max-width:700px){div[style*='max-width:640px']{max-width:99vw !important;margin:8px auto !important;}h2{font-size:1rem !important;}table{font-size:0.97rem !important;}a[style*='padding:16px 0']{font-size:1rem !important;padding:13px 0 !important;}}</style>
+        </body>
+      `;
+      const subject = `ProofPay 区块链预付款发票 - ${invoice.customerName || ''}`;
+      const res = await fetch('/api/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: emails,
+          subject,
+          html,
+          pdfBuffer: { data: Array.from(new Uint8Array(arrayBuffer)) },
+          pdfFileName: `proofpay-invoice-${invoice.documentId || Date.now()}.pdf`
+        })
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        setError(err.error || '邮件发送失败');
+      } else {
+        setSuccess(true);
+      }
+    } catch (e) {
+      setError('邮件发送失败');
+    } finally {
+      setSending(false);
+    }
   };
 
   // 英文邮件预览内容
@@ -76,7 +171,25 @@ export const SendInvoiceEmailModal: React.FC<SendInvoiceEmailModalProps> = ({ op
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Recipient Email</label>
-                <input type="email" className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-400 bg-white/80" value={email} onChange={e => setEmail(e.target.value)} placeholder="client@email.com" />
+                <ReactMultiEmail
+                  emails={emails}
+                  onChange={setEmails}
+                  placeholder="Enter email(s)"
+                  getLabel={(email, index, removeEmail) => (
+                    <div data-tag key={index} className="inline-flex items-center px-3 py-1 m-1 rounded-full bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-700 text-sm font-medium shadow-sm">
+                      {email}
+                      <span
+                        data-tag-handle
+                        onClick={() => removeEmail(index)}
+                        className="ml-2 cursor-pointer text-indigo-400 hover:text-indigo-700 text-lg font-bold"
+                        style={{ lineHeight: 1 }}
+                      >×</span>
+                    </div>
+                  )}
+                  validateEmail={isEmail}
+                  className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-400 bg-white/80 min-h-[48px]"
+                />
+                <div className="text-xs text-gray-400 mt-1 ml-1">Press Enter or comma to add multiple emails</div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Optional Message</label>
@@ -84,14 +197,14 @@ export const SendInvoiceEmailModal: React.FC<SendInvoiceEmailModalProps> = ({ op
               </div>
               {error && <div className="text-red-500 text-sm">{error}</div>}
               <div className="flex items-center space-x-3 mt-2">
-                <button type="button" className="px-6 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-semibold shadow-lg hover:from-indigo-600 hover:to-purple-600 hover:scale-105 transition-transform focus:outline-none focus:ring-2 focus:ring-indigo-400" onClick={handleSend} disabled={loading}>
-                  {loading ? 'Sending...' : sent ? 'Sent!' : 'Send Email'}
+                <button type="button" className="px-6 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-semibold shadow-lg hover:from-indigo-600 hover:to-purple-600 hover:scale-105 transition-transform focus:outline-none focus:ring-2 focus:ring-indigo-400" onClick={handleSend} disabled={sending}>
+                  {sending ? 'Sending...' : success ? 'Sent!' : 'Send Email'}
                 </button>
                 <button type="button" className="px-5 py-2 rounded-xl border border-indigo-200 text-indigo-600 font-medium bg-white/80 hover:bg-indigo-50 shadow hover:scale-105 transition-transform" onClick={() => setShowPreview(true)}>
                   Preview Email
                 </button>
               </div>
-              {sent && <div className="text-green-600 font-medium mt-2">Email sent successfully!</div>}
+              {success && <div className="text-green-600 font-medium mt-2">Email sent successfully!</div>}
             </div>
             {/* 邮件预览模态框 */}
             <AnimatePresence>
