@@ -54,7 +54,7 @@ export const SendInvoiceEmailModal: React.FC<SendInvoiceEmailModalProps> = ({ op
           <div style="max-width:640px;margin:32px auto;background:#fff;border-radius:18px;padding:0 0 32px 0;box-shadow:0 4px 24px #b2b6ff18;overflow:hidden;">
             <!-- Header -->
             <div style="text-align:center;padding:32px 0 10px 0;">
-              <img src='https://proof-pay.vercel.app/logo-proofpay-email.png' alt='ProofPay Logo' style='width:56px;height:56px;border-radius:14px;display:inline-block;background:#fff;' />
+              <img src="https://proof-pay.vercel.app/logo-proofpay-email.png" alt='ProofPay Logo' style='width:56px;height:56px;border-radius:14px;display:inline-block;background:#fff;' />
               <div style="font-weight:800;font-size:1.2rem;background:linear-gradient(90deg,#6366f1,#a855f7);-webkit-background-clip:text;color:transparent;margin-top:10px;letter-spacing:1px;">ProofPay</div>
             </div>
             <div style="height:2px;width:92%;margin:0 auto 24px auto;background:linear-gradient(90deg,#6366f1,#a855f7);border-radius:2px;"></div>
@@ -99,7 +99,7 @@ export const SendInvoiceEmailModal: React.FC<SendInvoiceEmailModalProps> = ({ op
           <style>@media (max-width:700px){div[style*='max-width:640px']{max-width:99vw !important;margin:8px auto !important;}h2{font-size:1rem !important;}table{font-size:0.97rem !important;}a[style*='padding:16px 0']{font-size:1rem !important;padding:13px 0 !important;}}</style>
         </body>
       `;
-      const subject = `ProofPay 区块链预付款发票 - ${invoice.customerName || ''}`;
+      const subject = `🧾 New On-Chain Invoice from ${invoice.businessName || 'ProofPay'}`;
       const res = await fetch('/api/email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
