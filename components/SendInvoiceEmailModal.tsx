@@ -98,7 +98,7 @@ export const SendInvoiceEmailModal: React.FC<SendInvoiceEmailModalProps> = ({ op
           <style>@media (max-width:700px){div[style*='max-width:640px']{max-width:99vw !important;margin:8px auto !important;}h2{font-size:1rem !important;}table{font-size:0.97rem !important;}a[style*='padding:16px 0']{font-size:1rem !important;padding:13px 0 !important;}}</style>
         </body>
       `;
-      const subject = `🧾 New Invoice from ProofPay for ${invoice.customerName}`;
+      const subject = `New Invoice from ${invoice.customerName} via ProofPay`;
       const res = await fetch('/api/email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
